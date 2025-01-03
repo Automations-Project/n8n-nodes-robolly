@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-robolly",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Image Generator"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://robolly.com/docs/api-reference/"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://robolly.com/docs/api-reference/"
+			}
+		]
+	}
+}
