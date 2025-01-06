@@ -1,6 +1,6 @@
 {
 	"name": "@automations-project/n8n-nodes-robolly",
-	"version": "0.1.8",
+	"version": "0.1.0",
 	"description": "Robolly node Demo",
 	"keywords": [
 		"n8n-community-node-package"
