@@ -2,7 +2,9 @@ import { ILoadOptionsFunctions, INodePropertyOptions, IExecuteFunctions } from '
 import axios from 'axios';
 import { Buffer } from 'buffer';
 
-export async function getAllTemplatesid(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+export async function getAllTemplatesid(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
 	try {
 		const credentials = await this.getCredentials('robollyApi');
 		const apiToken = credentials?.apikey as string;
@@ -11,7 +13,7 @@ export async function getAllTemplatesid(this: ILoadOptionsFunctions): Promise<IN
 			method: 'GET',
 			url: 'https://api.robolly.com/v1/templates',
 			headers: {
-				'Authorization': `Bearer ${apiToken}`,
+				Authorization: `Bearer ${apiToken}`,
 				'Content-Type': 'application/json',
 			},
 			json: true,
@@ -32,7 +34,9 @@ export async function getAllTemplatesid(this: ILoadOptionsFunctions): Promise<IN
 	}
 }
 
-export async function getAllTemplateElements(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+export async function getAllTemplateElements(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
 	try {
 		const credentials = await this.getCredentials('robollyApi');
 		const apiToken = credentials?.apikey as string;
@@ -46,7 +50,7 @@ export async function getAllTemplateElements(this: ILoadOptionsFunctions): Promi
 			method: 'GET',
 			url: `https://api.robolly.com/v1/templates/${templateId}/accepted-modifications`,
 			headers: {
-				'Authorization': `Bearer ${apiToken}`,
+				Authorization: `Bearer ${apiToken}`,
 				'Content-Type': 'application/json',
 			},
 			json: true,
@@ -59,13 +63,13 @@ export async function getAllTemplateElements(this: ILoadOptionsFunctions): Promi
 		const options: INodePropertyOptions[] = [];
 
 		for (const item of response.acceptedModifications) {
-			if(item.elementType !== 'rect'){
-			options.push({
-				name: item.key,
-				value: item.key,
-				description: `Type: ${item.type} Element: ${item.elementType}`,
-			});
-		}
+			if (item.elementType !== 'rect') {
+				options.push({
+					name: item.key,
+					value: item.key,
+					description: `Type: ${item.type} Element: ${item.elementType}`,
+				});
+			}
 
 			if (['text'].includes(item.elementType)) {
 				options.push({
@@ -102,7 +106,7 @@ export async function executeRobolly(
 				method: 'GET',
 				url: 'https://api.robolly.com/v1/templates',
 				headers: {
-					'Authorization': `Bearer ${apiToken}`,
+					Authorization: `Bearer ${apiToken}`,
 					'Content-Type': 'application/json',
 				},
 				json: true,
@@ -114,7 +118,7 @@ export async function executeRobolly(
 				method: 'GET',
 				url: `https://api.robolly.com/v1/templates/${templateId}/accepted-modifications`,
 				headers: {
-					'Authorization': `Bearer ${apiToken}`,
+					Authorization: `Bearer ${apiToken}`,
 					'Content-Type': 'application/json',
 				},
 				json: true,
@@ -122,43 +126,51 @@ export async function executeRobolly(
 			return responseData;
 		} else if (operation === 'generateImage') {
 			const templateId = this.getNodeParameter('templateId', 0) as string;
-			const imageFormat = this.getNodeParameter('imageFormat', 0) as string;
+			let imageFormat = this.getNodeParameter('imageFormat', 0) as string;
 			const elements = this.getNodeParameter('elements.elementValues', 0, []) as Array<{
 				elementName: string;
 				value: string;
 			}>;
+			let duration = this.getNodeParameter('duration', 0) as number;
 			const imageQuality = this.getNodeParameter('imageQuality', 0) as string;
+			if (imageFormat === '.gif') imageFormat = '.mp4';
 
 			let url = `https://api.robolly.com/templates/${templateId}/render${imageFormat}?scale=${imageQuality}`;
-			
-			const params = elements.map(({ elementName, value }) => {
-				if (typeof value === 'string') {
-					if (elementName.includes('.color')) {
-						value = value.startsWith('#') ? value : '#' + value;
+			duration = duration * 1000;
+			if (duration !== undefined && duration !== null && duration !== 0) {
+				url += `&duration=${duration}`;
+			}
+
+			const params = elements
+				.map(({ elementName, value }) => {
+					if (typeof value === 'string') {
+						if (elementName.includes('.color')) {
+							value = value.startsWith('#') ? value : '#' + value;
+						}
+						return `${elementName}=${encodeURIComponent(value)}`;
 					}
-					return `${elementName}=${encodeURIComponent(value)}`;
-				}
-				return '';
-			}).filter(param => param !== '');
-			
+					return '';
+				})
+				.filter((param) => param !== '');
+
 			if (params.length) {
 				url += '&' + params.join('&');
 			}
 
-		//	console.log('Final URL:', url);
+			//	console.log('Final URL:', url);
 
 			const response = await axios({
 				method: 'GET',
 				url: url,
 				headers: {
-					'Authorization': `Bearer ${apiToken}`,
+					Authorization: `Bearer ${apiToken}`,
 				},
-				responseType: 'arraybuffer'
+				responseType: 'arraybuffer',
 			});
 
 			const binaryData = await this.helpers.prepareBinaryData(
 				Buffer.from(response.data),
-				imageFormat.substring(1)
+				imageFormat.substring(1),
 			);
 
 			return {
@@ -166,7 +178,7 @@ export async function executeRobolly(
 					success: true,
 					format: imageFormat,
 					size: response.data.length,
-					url: url
+					url: url,
 				},
 				binary: {
 					data: binaryData,
@@ -245,7 +257,6 @@ export async function getTemplateElements(
 		});
 
 		return options;
-
 	} catch (error) {
 		console.error('Error in getTemplateElements:', error);
 		return options;
