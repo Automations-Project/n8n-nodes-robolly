@@ -2,6 +2,7 @@ import {
 	IAuthenticateGeneric,
 	ICredentialType,
 	INodeProperties,
+	ICredentialTestRequest,
 } from 'n8n-workflow';
 
 export class robollyApi implements ICredentialType {
@@ -28,6 +29,14 @@ export class robollyApi implements ICredentialType {
 				'Content-Type': 'application/json',
 				Accept: 'application/json',
 			},
+		},
+	};
+
+	test: ICredentialTestRequest = {
+		request: {
+			baseURL: 'https://api.robolly.com/v1',
+			url: '/templates',
+			method: 'GET',
 		},
 	};
 }
