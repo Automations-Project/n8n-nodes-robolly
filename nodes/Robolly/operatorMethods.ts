@@ -1,13 +1,8 @@
-import { IBinaryData, IExecuteFunctions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
+import { IExecuteFunctions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { genericHttpRequest, RobollyResponse } from '../../GenericFunctions';
 import axios from 'axios';
-import ffmpeg from 'fluent-ffmpeg';
-import { file } from 'tmp-promise';
-import ffmpegPath from 'ffmpeg-static';
-import * as fs from 'fs';
-if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
-else throw new Error('ffmpeg-static path not found');
-
+import { mp4ToAV1WithCompression, mp4ToGifWithCompression, mp4ToH264WithCompression, mp4ToHEVCWithCompression, mp4ToVP9WithCompression, mp4ToWebMWithCompression, mp4ToWebPWithCompression } from './ffmpegMethods';
+import { imageToWebP, imageToAVIF, imageToTIFF, imageToRaw } from './sharpMethods';
 export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	try {
 		// Get the current operation from the node parameters
@@ -45,9 +40,13 @@ export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INode
 
 export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	const options: INodePropertyOptions[] = [];
-
+	let templateId = null;
 	try {
-		const templateId = this.getNodeParameter('templateId') as string;
+		let currentoperation = this.getNodeParameter('operation') as string;
+
+		if (currentoperation === 'getTemplateElements') templateId = this.getNodeParameter('templateId') as string;
+		else if (currentoperation === 'generateImage') templateId = this.getNodeParameter('imageTemplate') as string;
+		else if (currentoperation === 'generateVideo') templateId = this.getNodeParameter('videoTemplate') as string;
 
 		const response = (await genericHttpRequest.call(this, 'GET', `/v1/templates/${templateId}/accepted-modifications`, {})) as RobollyResponse;
 
@@ -100,7 +99,7 @@ export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): P
 	}
 }
 
-export async function handleGetAllTemplates(this: IExecuteFunctions) {
+export async function handleGetTemplates(this: IExecuteFunctions) {
 	const templatesType = this.getNodeParameter('templatesType', 0) as string;
 
 	const response = (await genericHttpRequest.call(this, 'GET', `/v1/templates`, {})) as RobollyResponse;
@@ -120,6 +119,12 @@ export async function handleGetAllTemplates(this: IExecuteFunctions) {
 	return response;
 }
 
+export async function handleGetRenders(this: IExecuteFunctions) {
+	const response = (await genericHttpRequest.call(this, 'GET', `/v1/renders`, {})) as RobollyResponse;
+
+	return response;
+}
+
 export async function handleGetTemplateElements(this: IExecuteFunctions) {
 	const templateId = this.getNodeParameter('templateId', 0) as string;
 	const responseData = (await genericHttpRequest.call(this, 'GET', `/v1/templates/${templateId}/accepted-modifications`, {})) as RobollyResponse;
@@ -129,6 +134,7 @@ export async function handleGetTemplateElements(this: IExecuteFunctions) {
 
 export async function handleGenerateImage(this: IExecuteFunctions) {
 	const imageTemplate = this.getNodeParameter('imageTemplate', 0) as string;
+	const convertToIMG = this.getNodeParameter('convertToIMG', 0) as string;
 	// console.log('templateId:', templateId);
 
 	let imageFormat = this.getNodeParameter('imageFormat', 0) as string;
@@ -201,15 +207,36 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 			data: binaryData,
 		},
 	};
+	if (convertToIMG !== '' && convertToIMG !== '.png') {
+		const extentionOutput = this.getNodeParameter('extentionOutput', 0) as string;
+		const imageBuffer = Buffer.from(response.data);
+		const result = await ImageExtentionConvertor.call(
+			this,
+			imageBuffer,
+			url,
+			convertToIMG,
+			// Use the provided extension output or fallback to the conversion format
+			extentionOutput || convertToIMG,
+		);
+		if (result) {
+			// Update both the binary data and the response data
+			responseData = {
+				...result.responseData,
+				binary: {
+					data: result.binaryData,
+				},
+			};
+		}
+	}
 
 	return responseData;
 }
-
 export async function handleGenerateVideo(this: IExecuteFunctions) {
 	const videoTemplate = this.getNodeParameter('videoTemplate', 0) as string;
 	// console.log('templateId:', templateId);
 
-	let videoFormat = this.getNodeParameter('videoFormat', 0) as string;
+	const videoFormat = this.getNodeParameter('videoFormat', 0) as string;
+	const convertToVideo = this.getNodeParameter('convertToVideo', 0) as string;
 	// console.log('imageFormat:', imageFormat);
 
 	const elements = this.getNodeParameter('elements', 0) as {
@@ -293,83 +320,58 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 	};
 
 	// If GIF format was selected, convert MP4 to GIF
-	if (videoFormat === '.gif') {
+	if (convertToVideo !== '' && convertToVideo !== '.mp4') {
+		const extentionOutput = this.getNodeParameter('extentionOutput', 0) as string;
 		const videoBuffer = Buffer.from(response.data);
-		const { responseData: gifResponse } = await mp4ToGifWithCompression.call(this, videoBuffer, url);
+		const { responseData: gifResponse } = await VideoExtentionConvertor.call(this, videoBuffer, url, convertToVideo, extentionOutput);
 		responseData = gifResponse;
 	}
 
 	return responseData;
 }
 
-export async function mp4ToGifWithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	// Create temporary file paths
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpPalettePath, cleanup: cleanupPalette } = await file({ postfix: '.png' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.gif' });
+export async function VideoExtentionConvertor(this: IExecuteFunctions, videoBuffer: Buffer, url: string, convertToVideo: string, extentionOutput: string) {
+	switch (convertToVideo) {
+		case '.gif':
+			return await mp4ToGifWithCompression.call(this, videoBuffer, url, extentionOutput);
+		case '.webp':
+			return await mp4ToWebPWithCompression.call(this, videoBuffer, url, extentionOutput);
+		case '.webm':
+			return await mp4ToWebMWithCompression.call(this, videoBuffer, url, extentionOutput);
+		case '.av1':
+			return await mp4ToAV1WithCompression.call(this, videoBuffer, url, extentionOutput);
+		case '.hevc':
+			return await mp4ToHEVCWithCompression.call(this, videoBuffer, url, extentionOutput);
+		case '.h264':
+			return await mp4ToH264WithCompression.call(this, videoBuffer, url, extentionOutput);
+		case '.vp9':
+			return await mp4ToVP9WithCompression.call(this, videoBuffer, url, extentionOutput);
+		default:
+			return { binaryData: videoBuffer, responseData: { json: { success: true, format: '.mp4', size: videoBuffer.length, url: url } } };
+	}
+}
 
-	try {
-		// Write the input MP4 video buffer to a tmp file
-		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
-
-		// ───────────────────────────────────────────────
-		// 1. Generate a palette (first pass)
-		//    Adjust fps / scale / etc. as needed
-		// ───────────────────────────────────────────────
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				// Set a lower fps for smaller size (e.g., 10). Adjust as needed.
-				// Lanczos scaling often provides a good trade-off between quality & size.
-				.outputOptions(['-vf', 'fps=10,scale=320:-1:flags=lanczos,palettegen=stats_mode=full'])
-				.output(tmpPalettePath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
-
-		// ───────────────────────────────────────────────
-		// 2. Use the palette to convert to GIF (second pass)
-		// ───────────────────────────────────────────────
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				.input(tmpPalettePath)
-				// Applies the palette to reduce banding and keep file size lower
-				.outputOptions(['-lavfi', 'fps=10,scale=320:-1:flags=lanczos [x]; [x][1:v] paletteuse'])
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
-
-		// Read the output GIF back into a buffer
-		const gifBuffer = fs.readFileSync(tmpOutputPath);
-
-		// Prepare the binary data (n8n-specific helper)
-		const binaryData = await this.helpers.prepareBinaryData(gifBuffer, 'gif');
-
-		// Build final response
-		const responseData = {
-			json: {
-				success: true,
-				format: '.gif',
-				size: gifBuffer.length, // final size in bytes
-				url: url,
-			},
-			binary: {
-				data: binaryData,
-			},
-		};
-
-		// Cleanup temp files
-		await cleanupInput();
-		await cleanupPalette();
-		await cleanupOutput();
-
-		return { binaryData, responseData };
-	} catch (error) {
-		await cleanupInput();
-		await cleanupPalette();
-		await cleanupOutput();
-		throw error;
+export async function ImageExtentionConvertor(this: IExecuteFunctions, imageBuffer: Buffer, url: string, convertToIMG: string, extentionOutput: string) {
+	switch (convertToIMG) {
+		case '.webp':
+			return await imageToWebP.call(this, imageBuffer, url, extentionOutput || '.webp');
+		case '.avif':
+			return await imageToAVIF.call(this, imageBuffer, url, extentionOutput || '.avif');
+		case '.tiff':
+			return await imageToTIFF.call(this, imageBuffer, url, extentionOutput || '.tiff');
+		case '.raw':
+			return await imageToRaw.call(this, imageBuffer, url, extentionOutput || '.raw');
+		default:
+			return {
+				binaryData: imageBuffer,
+				responseData: {
+					json: {
+						success: true,
+						format: extentionOutput || convertToIMG,
+						size: imageBuffer.length,
+						url: url,
+					},
+				},
+			};
 	}
 }
