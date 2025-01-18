@@ -1,80 +1,33 @@
 import { INodeProperties } from 'n8n-workflow';
 
 export const publicFields: INodeProperties[] = [
+	//this is not a public field but  it need to be here because of fields ordering
 	{
-		displayName: 'Quality',
-		name: 'quality',
-		type: 'options',
-		options: [
-			{
-				name: 'Default',
-				value: '1',
-				description: 'Default Quallity is same as the template',
-			},
-
-			{
-				name: 'Low Quality',
-				value: '0.5',
-				description: 'Low Quallity is x0.5 the size of the template',
-			},
-			{
-				name: 'High Quality',
-				value: '2',
-				description: 'High Quallity is x2 the size of the template',
-			},
-			{
-				name: 'Very High Quality',
-				value: '3',
-				description: 'Very High Quallity is x3 the size of the template',
-			},
-		],
+		displayName: 'Hidden Render Link',
+		name: 'renderLink',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to use Base64 encoding to create a hidden render link',
 		displayOptions: {
 			show: {
-				operation: ['generateImage', 'generateVideo'],
+				operation: ['generateVideo', 'generateImage'],
 			},
 		},
-		default: '1',
 	},
-
 	{
-		displayName: 'Template Elements',
-		name: 'elements',
-		type: 'fixedCollection',
-		typeOptions: {
-			multipleValues: true,
-		},
-		default: {},
+		displayName: 'Movie Generation',
+		name: 'movieGeneration',
+		type: 'boolean',
 		displayOptions: {
 			show: {
-				operation: ['generateImage', 'generateVideo'],
+				operation: ['generateVideo'],
 			},
 		},
-		options: [
-			{
-				name: 'ElementValues',
-				displayName: 'Element',
-				values: [
-					{
-						displayName: 'Element Name or ID',
-						name: 'elementName',
-						type: 'options',
-						typeOptions: {
-							loadOptionsMethod: 'getTemplateElementsOptions',
-						},
-						default: '',
-						description: 'Name of the element to modify. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
-					},
-					{
-						displayName: 'Value',
-						name: 'value',
-						type: 'string',
-						default: '',
-						description: 'Value to set for the element',
-					},
-				],
-			},
-		],
+		default: false,
+		// eslint-disable-next-line n8n-nodes-base/node-param-description-boolean-without-whether
+		description: 'Manually request Api integration JSON DATA',
 	},
+	//
 	{
 		displayName: 'Template Name or ID',
 		name: 'templateId',
@@ -121,7 +74,7 @@ export const generateImageFields: INodeProperties[] = [
 				operation: ['generateImage'],
 			},
 		},
-		default: '.png',
+		default: '.jpg',
 		description: 'Image Format like png/jpg',
 	},
 	{
@@ -144,6 +97,40 @@ export const generateImageFields: INodeProperties[] = [
 		description: 'Convert the image to the desired format',
 	},
 	{
+		displayName: 'Image Scale',
+		name: 'ImageScale',
+		type: 'options',
+		options: [
+			{
+				name: 'Default',
+				value: '1',
+				description: 'Default Image Scale is 1.0 the size of the template',
+			},
+
+			{
+				name: 'Low Quality',
+				value: '0.5',
+				description: 'Low Image Scale is x0.5 the size of the template',
+			},
+			{
+				name: 'High Quality',
+				value: '2',
+				description: 'High Image Scale is x2 the size of the template',
+			},
+			{
+				name: 'Super High Quality',
+				value: '3',
+				description: 'Super High Image Scale is x3 the size of the template',
+			},
+		],
+		displayOptions: {
+			show: {
+				operation: ['generateImage'],
+			},
+		},
+		default: '1',
+	},
+	{
 		displayName: 'Change File Extension',
 		name: 'extentionOutput',
 		type: 'options',
@@ -153,7 +140,7 @@ export const generateImageFields: INodeProperties[] = [
 				value: '',
 			},
 			{ name: 'PNG', value: 'png' },
-			{ name: 'JPEG', value: 'jpeg' },
+			{ name: 'JPG', value: 'jpg' },
 		],
 		displayOptions: {
 			show: {
@@ -164,6 +151,46 @@ export const generateImageFields: INodeProperties[] = [
 		default: '',
 		description: 'Whether to optimize the converted image for better quality/size ratio',
 	},
+
+	{
+		displayName: 'Template Elements',
+		name: 'elementsImage',
+		type: 'fixedCollection',
+		typeOptions: {
+			multipleValues: true,
+		},
+		default: {},
+		displayOptions: {
+			show: {
+				operation: ['generateImage'],
+			},
+		},
+		options: [
+			{
+				name: 'ElementValues',
+				displayName: 'Element',
+				values: [
+					{
+						displayName: 'Element Name or ID',
+						name: 'elementNameImage',
+						type: 'options',
+						typeOptions: {
+							loadOptionsMethod: 'getTemplateElementsOptions',
+						},
+						default: '',
+						description: 'Name of the element to modify. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+					},
+					{
+						displayName: 'Value',
+						name: 'valueImage',
+						type: 'string',
+						default: '',
+						description: 'Value to set for the element',
+					},
+				],
+			},
+		],
+	},
 ];
 
 export const generateVideoFields: INodeProperties[] = [
@@ -171,15 +198,16 @@ export const generateVideoFields: INodeProperties[] = [
 		displayName: 'Video Template Name or ID',
 		name: 'videoTemplate',
 		type: 'options',
+		default: '',
 		typeOptions: {
 			loadOptionsMethod: 'getTemplatesid',
 		},
 		displayOptions: {
 			show: {
 				operation: ['generateVideo'],
+				movieGeneration: [false],
 			},
 		},
-		default: '',
 		description: 'Get Template ID. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 	},
 	{
@@ -190,9 +218,42 @@ export const generateVideoFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				operation: ['generateVideo'],
+				movieGeneration: [false],
 			},
 		},
 		default: '.mp4',
+	},
+	{
+		displayName: 'Duration',
+		name: 'duration',
+		type: 'number',
+		displayOptions: {
+			show: {
+				operation: ['generateVideo'],
+				movieGeneration: [false],
+			},
+		},
+		default: 5,
+		description: 'Duration of the video in seconds',
+	},
+	{
+		displayName: 'FPS',
+		name: 'fps',
+		type: 'options',
+		options: [
+			{ name: '24 FPS', value: '24', description: '24 Frames Per Second' },
+			{ name: '30 FPS', value: '30', description: '30 Frames Per Second' },
+			{ name: '50 FPS', value: '50', description: '50 Frames Per Second' },
+			{ name: '60 FPS', value: '60', description: '60 Frames Per Second' },
+		],
+
+		displayOptions: {
+			show: {
+				operation: ['generateVideo'],
+				movieGeneration: [false],
+			},
+		},
+		default: '24',
 	},
 
 	{
@@ -213,6 +274,7 @@ export const generateVideoFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				operation: ['generateVideo'],
+				movieGeneration: [false],
 			},
 		},
 		default: '',
@@ -233,22 +295,79 @@ export const generateVideoFields: INodeProperties[] = [
 			show: {
 				operation: ['generateVideo'],
 				convertToVideo: ['.av1', '.webp', '.webm', '.gif', '.h264', '.hevc', '.vp9'],
+				movieGeneration: [false],
 			},
 		},
 		default: '',
 		description: 'Change the file extension of the generated video',
 	},
+
 	{
-		displayName: 'Duration',
-		name: 'duration',
-		type: 'number',
+		displayName: 'JSON Data',
+		name: 'ApiIntergation',
+		type: 'json',
+		placeholder: 'test',
 		displayOptions: {
 			show: {
 				operation: ['generateVideo'],
+				movieGeneration: [true],
 			},
 		},
+		default: '{}',
+	},
+	{
+		displayName: 'Attempts',
+		name: 'attempts',
+		type: 'number',
 		default: 5,
-		description: 'Duration of the video in seconds',
+		description: 'Number of attempts for requesting resourceURL',
+		displayOptions: {
+			show: {
+				operation: ['generateVideo'],
+				movieGeneration: [true],
+			},
+		},
+	},
+	{
+		displayName: 'Template Elements',
+		name: 'elementsVideo',
+		type: 'fixedCollection',
+		typeOptions: {
+			multipleValues: true,
+		},
+		default: {},
+		displayOptions: {
+			show: {
+				operation: ['generateVideo'],
+
+				movieGeneration: [false],
+			},
+		},
+		options: [
+			{
+				name: 'ElementValues',
+				displayName: 'Element',
+				values: [
+					{
+						displayName: 'Element Name or ID',
+						name: 'elementNameVideo',
+						type: 'options',
+						typeOptions: {
+							loadOptionsMethod: 'getTemplateElementsOptions',
+						},
+						default: '',
+						description: 'Name of the element to modify. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+					},
+					{
+						displayName: 'Value',
+						name: 'valueVideo',
+						type: 'string',
+						default: '',
+						description: 'Value to set for the element',
+					},
+				],
+			},
+		],
 	},
 ];
 
