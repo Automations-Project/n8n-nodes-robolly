@@ -3,6 +3,7 @@ import { genericHttpRequest, RobollyResponse } from '../../GenericFunctions';
 import axios from 'axios';
 import { mp4ToAV1WithCompression, mp4ToGifWithCompression, mp4ToH264WithCompression, mp4ToHEVCWithCompression, mp4ToVP9WithCompression, mp4ToWebMWithCompression, mp4ToWebPWithCompression } from './ffmpegMethods';
 import { imageToWebP, imageToAVIF, imageToTIFF, imageToRaw } from './sharpMethods';
+
 export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	try {
 		// Get the current operation from the node parameters
@@ -135,49 +136,68 @@ export async function handleGetTemplateElements(this: IExecuteFunctions) {
 export async function handleGenerateImage(this: IExecuteFunctions) {
 	const imageTemplate = this.getNodeParameter('imageTemplate', 0) as string;
 	const convertToIMG = this.getNodeParameter('convertToIMG', 0) as string;
-	// console.log('templateId:', templateId);
-
+	const renderLink = this.getNodeParameter('renderLink', 0) as boolean;
 	let imageFormat = this.getNodeParameter('imageFormat', 0) as string;
-	// console.log('imageFormat:', imageFormat);
 
-	const elements = this.getNodeParameter('elements', 0) as {
+	const elements = this.getNodeParameter('elementsImage', 0) as {
 		ElementValues?: Array<{
-			elementName: string;
-			value: string;
+			elementNameImage: string;
+			valueImage: string;
 		}>;
 	};
-	// console.log('Raw elements:', elements);
 
 	const elementValues = elements.ElementValues || [];
-	// console.log('Element values:', elementValues);
+	const ImageScale = this.getNodeParameter('ImageScale', 0, '1') as string;
 
-	const Quallity = this.getNodeParameter('quality', 0, '1') as string;
+	let url;
+	if (renderLink) {
+		// Create query parameters for render link
+		const queryParams: Record<string, string> = {
+			template: imageTemplate,
+			scale: ImageScale,
+		};
 
-	// Create base URL
-	let url = `https://api.robolly.com/templates/${imageTemplate}/render${imageFormat}?scale=${Quallity}`;
-	// console.log('Initial URL:', url);
-	const urlParams: string[] = [];
-
-	// Modified element parameters handling
-	if (elementValues && elementValues.length > 0) {
-		const elementParams = elementValues
-			.map(({ elementName, value }) => {
-				if (!elementName || !value) return '';
-				if (typeof value === 'string') {
-					if (elementName.includes('.color')) {
-						value = value.startsWith('#') ? value : '#' + value;
-					}
-					return `${elementName}=${encodeURIComponent(value)}`;
+		// Add element modifications to query params
+		elementValues.forEach(({ elementNameImage, valueImage }) => {
+			if (elementNameImage && valueImage) {
+				if (elementNameImage.includes('.color')) {
+					queryParams[elementNameImage] = valueImage.startsWith('#') ? valueImage : '#' + valueImage;
+				} else {
+					queryParams[elementNameImage] = valueImage;
 				}
-				return '';
-			})
-			.filter(Boolean);
-		urlParams.push(...elementParams);
-	}
+			}
+		});
 
-	// Add parameters to URL if any exist
-	if (urlParams.length) {
-		url += '&' + urlParams.join('&');
+		// Create URLSearchParams and encode as base64url
+		const query = new URLSearchParams(queryParams);
+		const encoded = Buffer.from(query.toString(), 'utf8').toString('base64url');
+
+		// Create the hidden render link
+		url = `https://api.robolly.com/rd/${encoded}${imageFormat}`;
+	} else {
+		// Original URL creation logic
+		url = `https://api.robolly.com/templates/${imageTemplate}/render${imageFormat}?scale=${ImageScale}`;
+		const urlParams: string[] = [];
+
+		if (elementValues && elementValues.length > 0) {
+			const elementParams = elementValues
+				.map(({ elementNameImage, valueImage }) => {
+					if (!elementNameImage || !valueImage) return '';
+					if (typeof valueImage === 'string') {
+						if (elementNameImage.includes('.color')) {
+							valueImage = valueImage.startsWith('#') ? valueImage : '#' + valueImage;
+						}
+						return `${elementNameImage}=${encodeURIComponent(valueImage)}`;
+					}
+					return '';
+				})
+				.filter(Boolean);
+			urlParams.push(...elementParams);
+		}
+
+		if (urlParams.length) {
+			url += '&' + urlParams.join('&');
+		}
 	}
 
 	// console.log('Final URL:', url);
@@ -231,87 +251,115 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 
 	return responseData;
 }
+
 export async function handleGenerateVideo(this: IExecuteFunctions) {
-	const videoTemplate = this.getNodeParameter('videoTemplate', 0) as string;
-	// console.log('templateId:', templateId);
-
-	const videoFormat = this.getNodeParameter('videoFormat', 0) as string;
-	const convertToVideo = this.getNodeParameter('convertToVideo', 0) as string;
-	// console.log('imageFormat:', imageFormat);
-
-	const elements = this.getNodeParameter('elements', 0) as {
-		ElementValues?: Array<{
-			elementName: string;
-			value: string;
-		}>;
-	};
-	// console.log('Raw elements:', elements);
-
+	const credentials = await this.getCredentials('robollyApi');
+	const apiToken = credentials?.apikey as string;
+	const MovieGeneration = this.getNodeParameter('movieGeneration', 0) as boolean;
+	const videoTemplate = !MovieGeneration ? (this.getNodeParameter('videoTemplate', 0) as string) : '';
+	const videoFormat = !MovieGeneration ? (this.getNodeParameter('videoFormat', 0) as string) : '';
+	const convertToVideo = !MovieGeneration ? (this.getNodeParameter('convertToVideo', 0) as string) : '';
+	const videoQuality = !MovieGeneration ? (this.getNodeParameter('quality', 0, '1') as string) : '';
+	const renderLink = !MovieGeneration ? (this.getNodeParameter('renderLink', 0) as boolean) : false;
+	let duration = !MovieGeneration ? (this.getNodeParameter('duration', 0, 0) as number) : 0;
+	const ApiIntergation = MovieGeneration ? (this.getNodeParameter('ApiIntergation', 0, {}) as JSON) : {};
+	const fps = this.getNodeParameter('fps', 0, 30) as number;
+	const elements = !MovieGeneration
+		? (this.getNodeParameter('elementsVideo', 0) as {
+				ElementValues?: Array<{
+					elementNameVideo: string;
+					valueVideo: string;
+				}>;
+		  })
+		: { ElementValues: [] };
 	const elementValues = elements.ElementValues || [];
-	// console.log('Element values:', elementValues);
 
-	const videoQuality = this.getNodeParameter('quality', 0, '1') as string;
-	// console.log('imageQuality:', imageQuality);
+	let url;
+	if (!MovieGeneration && renderLink) {
+		// Create query parameters for render link
+		const queryParams: Record<string, string> = {
+			template: videoTemplate,
+			scale: videoQuality,
+			fps: fps.toString(),
+		};
 
-	let duration = this.getNodeParameter('duration', 0, 0) as number;
-	// console.log('duration:', duration);
+		if (duration) {
+			queryParams.duration = (duration * 1000).toString();
+		}
 
-	// Create base URL
-	let url = `https://api.robolly.com/templates/${videoTemplate}/render.mp4?scale=${videoQuality}`;
-	// console.log('Initial URL:', url);
-
-	// Collect all parameters in an array
-	const urlParams: string[] = [];
-
-	// Add duration parameter if applicable
-	if (duration) {
-		duration = duration * 1000;
-		urlParams.push(`duration=${duration}`);
-	}
-
-	// Modified element parameters handling
-	if (elementValues && elementValues.length > 0) {
-		const elementParams = elementValues
-			.map(({ elementName, value }) => {
-				if (!elementName || !value) return '';
-				if (typeof value === 'string') {
-					if (elementName.includes('.color')) {
-						value = value.startsWith('#') ? value : '#' + value;
-					}
-					return `${elementName}=${encodeURIComponent(value)}`;
+		// Add element modifications to query params
+		elementValues.forEach(({ elementNameVideo, valueVideo }) => {
+			if (elementNameVideo && valueVideo) {
+				if (elementNameVideo.includes('.color')) {
+					queryParams[elementNameVideo] = valueVideo.startsWith('#') ? valueVideo : '#' + valueVideo;
+				} else {
+					queryParams[elementNameVideo] = valueVideo;
 				}
-				return '';
-			})
-			.filter(Boolean);
-		urlParams.push(...elementParams);
-	}
+			}
+		});
 
-	// Add parameters to URL if any exist
-	if (urlParams.length) {
-		url += '&' + urlParams.join('&');
+		// Create URLSearchParams and encode as base64url
+		const query = new URLSearchParams(queryParams);
+		const encoded = Buffer.from(query.toString(), 'utf8').toString('base64url');
+
+		// Create the hidden render link
+		url = `https://api.robolly.com/rd/${encoded}.mp4`;
+	} else if (!MovieGeneration) {
+		// Original URL creation logic
+		url = `https://api.robolly.com/templates/${videoTemplate}/render.mp4?scale=${videoQuality}`;
+		const urlParams: string[] = [];
+
+		if (duration) {
+			duration = duration * 1000;
+			urlParams.push(`duration=${duration}`);
+		}
+		urlParams.push(`fps=${fps}`);
+
+		if (elementValues && elementValues.length > 0) {
+			const elementParams = elementValues
+				.map(({ elementNameVideo, valueVideo }) => {
+					if (!elementNameVideo || !valueVideo) return '';
+					if (typeof valueVideo === 'string') {
+						if (elementNameVideo.includes('.color')) {
+							valueVideo = valueVideo.startsWith('#') ? valueVideo : '#' + valueVideo;
+						}
+						return `${elementNameVideo}=${encodeURIComponent(valueVideo)}`;
+					}
+					return '';
+				})
+				.filter(Boolean);
+			urlParams.push(...elementParams);
+		}
+
+		if (urlParams.length) {
+			url += '&' + urlParams.join('&');
+		}
 	}
 
 	// console.log('Final URL:', url);
 
-	const credentials = await this.getCredentials('robollyApi');
-	const apiToken = credentials?.apikey as string;
+	let response = null;
+	if (MovieGeneration) {
+		const maxAttempts = this.getNodeParameter('attempts', 0, 1) as number;
+		return await handleMovieGenerateRequest(apiToken, ApiIntergation, maxAttempts);
+	} else {
+		response = await axios({
+			method: 'GET',
+			url: url,
+			headers: {
+				Authorization: `Bearer ${apiToken}`,
+			},
+			responseType: 'arraybuffer',
+		});
+	}
 
-	const response = await axios({
-		method: 'GET',
-		url: url,
-		headers: {
-			Authorization: `Bearer ${apiToken}`,
-		},
-		responseType: 'arraybuffer',
-	});
-
-	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.data), videoFormat.substring(1));
+	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response?.data), videoFormat.substring(1));
 
 	let responseData = {
 		json: {
 			success: true,
 			format: videoFormat,
-			size: response.data.length,
+			size: response?.data.length,
 			url: url,
 		},
 		binary: {
@@ -322,8 +370,8 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 	// If GIF format was selected, convert MP4 to GIF
 	if (convertToVideo !== '' && convertToVideo !== '.mp4') {
 		const extentionOutput = this.getNodeParameter('extentionOutput', 0) as string;
-		const videoBuffer = Buffer.from(response.data);
-		const { responseData: gifResponse } = await VideoExtentionConvertor.call(this, videoBuffer, url, convertToVideo, extentionOutput);
+		const videoBuffer = Buffer.from(response?.data || '');
+		const { responseData: gifResponse } = await VideoExtentionConvertor.call(this, videoBuffer, url || '', convertToVideo, extentionOutput);
 		responseData = gifResponse;
 	}
 
@@ -374,4 +422,85 @@ export async function ImageExtentionConvertor(this: IExecuteFunctions, imageBuff
 				},
 			};
 	}
+}
+
+const calculateTotalDuration = (data: any): number => {
+	let total = 0;
+
+	// Check if data has timeline property and it's an array
+	if (data?.timeline && Array.isArray(data.timeline)) {
+		// Sum up all duration values in timeline
+		data.timeline.forEach((item: any) => {
+			if (item?.duration && typeof item.duration === 'number') {
+				total += item.duration;
+			}
+		});
+	}
+	return total;
+};
+
+async function handleMovieGenerateRequest(apiToken: string, ApiIntergation: any, attempts: number) {
+	const jsonObject = typeof ApiIntergation === 'string' ? JSON.parse(ApiIntergation) : ApiIntergation;
+	const totalDuration = calculateTotalDuration(jsonObject) * 2;
+
+	// Add retry logic for the initial POST request
+	let initialResponse = null;
+	for (let i = 0; i < 3; i++) {
+		try {
+			initialResponse = await axios({
+				method: 'POST',
+				url: 'https://api.robolly.com/v1/video/render',
+				headers: {
+					Authorization: `Bearer ${apiToken}`,
+					'Content-Type': 'application/json',
+				},
+				data: ApiIntergation,
+				timeout: 10000,
+			});
+			break;
+		} catch (error) {
+			console.log(`Attempt ${i + 1} failed:`, error.message);
+			if (i === 2) {
+				throw new Error(`Failed to initiate video generation after 3 attempts: ${error.message}`);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 2000));
+		}
+	}
+
+	const resourceUrl = initialResponse?.data?.resourceUrl;
+	if (!resourceUrl) {
+		throw new Error('Failed to get resource URL from response');
+	}
+
+	let currentAttempts = 0;
+	while (currentAttempts < attempts) {
+		try {
+			const pollResponse = await axios({
+				method: 'GET',
+				url: resourceUrl,
+				headers: {
+					Authorization: `Bearer ${apiToken}`,
+				},
+				timeout: 15000,
+			});
+
+			if (pollResponse.data?.value?.[0]?.file) {
+				return {
+					json: {
+						success: true,
+						videoUrl: pollResponse.data.value[0].file,
+						status: 'completed',
+					},
+				};
+			}
+		} catch (error) {
+			console.log(`Poll attempt ${currentAttempts + 1} failed:`, error.message);
+		}
+
+		const timeoutDuration = Math.min(Math.max(totalDuration || 15000, 15000), 200000);
+		await new Promise((resolve) => setTimeout(resolve, timeoutDuration));
+		currentAttempts++;
+	}
+
+	throw new Error('Movie generation timed out or failed');
 }
