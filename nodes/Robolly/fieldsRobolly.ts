@@ -1,5 +1,4 @@
 import { INodeProperties } from 'n8n-workflow';
-
 export const publicFields: INodeProperties[] = [
 	//this is not a public field but  it need to be here because of fields ordering
 	{
@@ -41,7 +40,45 @@ export const publicFields: INodeProperties[] = [
 			},
 		},
 		default: '',
-		description: 'Get Template ID. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+	},
+	{
+		displayName: 'Return All Items',
+		name: 'returnAllItems',
+		type: 'boolean',
+		default: true,
+		description: 'Whether to get all items of the template',
+		displayOptions: {
+			show: {
+				operation: ['getRenders', 'getTemplates'],
+			},
+		},
+	},
+	{
+		displayName: 'Limit',
+		name: 'limitItems',
+		type: 'number',
+		default: 1,
+		description: 'How many Itmes to return',
+		displayOptions: {
+			show: {
+				operation: ['getRenders', 'getTemplates'],
+				returnAllItems: [false],
+			},
+		},
+	},
+	{
+		displayName: `Warning Get Renders may show a huge data`,
+		name: 'RenderWarning',
+		type: 'notice',
+		default: '',
+		description: 'Get Renders may show a huge data',
+		displayOptions: {
+			show: {
+				operation: ['getRenders'],
+				returnAllItems: [true],
+			},
+		},
 	},
 ];
 
@@ -59,7 +96,7 @@ export const generateImageFields: INodeProperties[] = [
 			},
 		},
 		default: '',
-		description: 'Get Template ID. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 	},
 	{
 		displayName: 'Image Format',
@@ -82,11 +119,11 @@ export const generateImageFields: INodeProperties[] = [
 		name: 'convertToIMG',
 		type: 'options',
 		options: [
-			{ name: 'None', value: '', description: 'No conversion' },
-			{ name: 'WebP', value: '.webp', description: 'Modern image format with excellent compression' },
 			{ name: 'AVIF', value: '.avif', description: 'Next-gen image format with superior compression' },
-			{ name: 'TIFF', value: '.tiff', description: 'High-quality lossless image format' },
+			{ name: 'None', value: '', description: 'No conversion' },
 			{ name: 'RAW', value: '.raw', description: 'Unprocessed image data format' },
+			{ name: 'TIFF', value: '.tiff', description: 'High-quality lossless image format' },
+			{ name: 'WebP', value: '.webp', description: 'Modern image format with excellent compression' },
 		],
 		displayOptions: {
 			show: {
@@ -208,13 +245,13 @@ export const generateVideoFields: INodeProperties[] = [
 				movieGeneration: [false],
 			},
 		},
-		description: 'Get Template ID. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 	},
 	{
 		displayName: 'Video Format',
 		name: 'videoFormat',
 		type: 'options',
-		options: [{ name: 'MP4', value: '.mp4', description: 'Mp4 takes 150 credits to be generated' }],
+		options: [{ name: 'MP4', value: '.mp4', description: 'Standard video format with wide compatibility and good compression' }],
 		displayOptions: {
 			show: {
 				operation: ['generateVideo'],
@@ -262,14 +299,14 @@ export const generateVideoFields: INodeProperties[] = [
 		type: 'options',
 
 		options: [
-			{ name: 'None', value: '', description: 'No conversion' },
-			{ name: '📹 AV1', value: '.av1', description: '🥇 High-efficiency video codec with excellent compression' },
-			{ name: '🎥 WebP', value: '.webp', description: '🥈 Animation format with efficient compression' },
-			{ name: '🎥 WebM', value: '.webm', description: '🥉 Video format with efficient compression' },
 			{ name: '🎥 GIF', value: '.gif', description: '🥉 Animation format with wide compatibility' },
+			{ name: '🎥 WebM', value: '.webm', description: '🥉 Video format with efficient compression' },
+			{ name: '🎥 WebP', value: '.webp', description: '🥈 Animation format with efficient compression' },
+			{ name: '📹 AV1', value: '.av1', description: '🥇 High-efficiency video codec with excellent compression' },
 			{ name: '📹 H.264 (AVC)', value: '.h264', description: '🥉 Widely supported video codec with good compression' },
 			{ name: '📹 HEVC (H.265)', value: '.hevc', description: '🥉 High-efficiency video coding with improved compression' },
 			{ name: '📹 VP9', value: '.vp9', description: '🥉 Open-source video codec with efficient compression' },
+			{ name: 'None', value: '', description: 'No conversion' },
 		],
 		displayOptions: {
 			show: {

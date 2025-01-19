@@ -2,7 +2,7 @@
 	"node": "n8n-nodes-robolly",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
-	"categories": ["Image Generator"],
+	"categories": ["Image~Video Generator"],
 	"resources": {
 		"credentialDocumentation": [
 			{

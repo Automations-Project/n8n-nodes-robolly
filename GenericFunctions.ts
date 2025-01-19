@@ -17,21 +17,27 @@ export interface RobollyResponse {
 	templates?: Array<{
 		id: string;
 		name: string;
+		transition: {
+			duration: number;
+		} | null;
 	}>;
+	value?: Array<any>;
+	hasMore?: boolean;
+	paginationCursorNext?: string;
 }
 
-export async function genericHttpRequest<T = RobollyResponse>(
-	this: IExecuteFunctions | ILoadOptionsFunctions,
-	method: IHttpRequestMethods,
-	endpoint: string,
-	options: RequestOptions = {},
-): Promise<T> {
+export async function genericHttpRequest<T = RobollyResponse>(this: IExecuteFunctions | ILoadOptionsFunctions, method: IHttpRequestMethods, endpoint: string, options: RequestOptions = {}): Promise<T> {
 	try {
 		const credentials = await this.getCredentials('robollyApi');
 		const apiToken = credentials?.apikey as string;
 
-		// Determine the base URL based on endPointType
-		const fullEndpoint = `https://api.robolly.com${endpoint}`;
+		// Add query parameters to URL if they exist
+		let fullEndpoint = `https://api.robolly.com${endpoint}`;
+		if (options.params) {
+			const searchParams = new URLSearchParams(options.params);
+			fullEndpoint += fullEndpoint.includes('?') ? '&' : '?';
+			fullEndpoint += searchParams.toString();
+		}
 
 		const response = await this.helpers.httpRequest({
 			method,

@@ -6,8 +6,13 @@ import { generateImageFields, generateVideoFields, getTemplatesFields, publicFie
 export class Robolly implements INodeType {
 	public async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const operation = this.getNodeParameter('operation', 0) as string;
-		let responseData = await executeRobolly.call(this, operation);
-		return [this.helpers.returnJsonArray([responseData as IDataObject])];
+		const responseData = await executeRobolly.call(this, operation);
+
+		if (Array.isArray(responseData) && responseData.length > 0 && responseData[0].hasOwnProperty('json')) {
+			return [responseData as INodeExecutionData[]];
+		}
+
+		return [[{ json: responseData as IDataObject }]];
 	}
 	description: INodeTypeDescription = {
 		displayName: 'Robolly',
