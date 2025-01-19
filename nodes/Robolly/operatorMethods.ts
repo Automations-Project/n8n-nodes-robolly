@@ -16,17 +16,7 @@ export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INode
 		}
 
 		// Filter templates only for specific operations, otherwise return all
-		const filteredTemplates = ['generateImage', 'generateVideo'].includes(operation)
-			? response.templates.filter((template: any) => {
-					if (operation === 'generateImage') {
-						return template.transition === null;
-					}
-					if (operation === 'generateVideo') {
-						return template.transition !== null;
-					}
-					return true;
-			  })
-			: response.templates;
+		const filteredTemplates = operation === 'generateVideo' ? response.templates.filter((template: any) => template.transition !== null) : response.templates;
 
 		return filteredTemplates.map((template: any) => ({
 			name: template.name || 'Unnamed Template',
@@ -102,28 +92,115 @@ export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): P
 
 export async function handleGetTemplates(this: IExecuteFunctions) {
 	const templatesType = this.getNodeParameter('templatesType', 0) as string;
+	const returnAllItems = this.getNodeParameter('returnAllItems', 0) as boolean;
+	const limitItems = returnAllItems ? '' : (this.getNodeParameter('limitItems', 0) as string);
 
-	const response = (await genericHttpRequest.call(this, 'GET', `/v1/templates`, {})) as RobollyResponse;
+	let allTemplates: any[] = [];
+	let hasMore = true;
+	let cursor: string | undefined;
+	const limit = returnAllItems ? undefined : parseInt(limitItems, 10);
 
-	if (templatesType !== 'all' && response?.templates) {
-		response.templates = response.templates.filter((template: any) => {
-			if (templatesType === 'image') {
-				return template.transition === null;
+	try {
+		let pageCount = 0;
+		while (hasMore && pageCount < 100) {
+			pageCount++;
+
+			const params: Record<string, string> = {
+				limit: '100',
+			};
+			if (cursor) {
+				params.paginationCursorNext = cursor;
 			}
-			if (templatesType === 'video') {
-				return template.transition !== null;
+
+			const response = (await genericHttpRequest.call(this, 'GET', `/v1/templates`, { params })) as RobollyResponse;
+
+			if (!response?.templates) {
+				break;
 			}
-			return true;
-		});
+
+			let filteredTemplates = response.templates;
+			if (templatesType !== 'all') {
+				filteredTemplates = response.templates.filter((template: any) => {
+					if (templatesType === 'image') {
+						return template.transition === null;
+					}
+					if (templatesType === 'video') {
+						return template.transition !== null;
+					}
+					return true;
+				});
+			}
+
+			filteredTemplates.forEach((template) => allTemplates.push(template));
+
+			if (limit && allTemplates.length >= limit) {
+				allTemplates = allTemplates.slice(0, limit);
+				break;
+			}
+
+			hasMore = Boolean(response.hasMore);
+			cursor = response.paginationCursorNext;
+
+			if (!hasMore || !cursor) {
+				break;
+			}
+		}
+
+		// Return array of items directly
+		return this.helpers.returnJsonArray(allTemplates);
+	} catch (error) {
+		console.error('Error fetching templates:', error);
+		throw error;
 	}
-
-	return response;
 }
 
 export async function handleGetRenders(this: IExecuteFunctions) {
-	const response = (await genericHttpRequest.call(this, 'GET', `/v1/renders`, {})) as RobollyResponse;
+	const returnAllItems = this.getNodeParameter('returnAllItems', 0) as boolean;
+	const limitItems = returnAllItems ? '' : (this.getNodeParameter('limitItems', 0) as string);
 
-	return response;
+	let allRenders: any[] = [];
+	let hasMore = true;
+	let cursor: string | undefined;
+	const limit = returnAllItems ? undefined : parseInt(limitItems, 10);
+
+	try {
+		let pageCount = 0;
+		while (hasMore && pageCount < 100) {
+			pageCount++;
+
+			const params: Record<string, string> = {
+				limit: '100',
+			};
+			if (cursor) {
+				params.paginationCursorNext = cursor;
+			}
+
+			const response = (await genericHttpRequest.call(this, 'GET', `/v1/renders`, { params })) as RobollyResponse;
+
+			if (!response?.value) {
+				break;
+			}
+
+			allRenders = [...allRenders, ...response.value];
+
+			if (limit && allRenders.length >= limit) {
+				allRenders = allRenders.slice(0, limit);
+				break;
+			}
+
+			hasMore = Boolean(response.hasMore);
+			cursor = response.paginationCursorNext;
+
+			if (!hasMore || !cursor) {
+				break;
+			}
+		}
+
+		// Return array of items directly
+		return this.helpers.returnJsonArray(allRenders);
+	} catch (error) {
+		throw error;
+	}
 }
 
 export async function handleGetTemplateElements(this: IExecuteFunctions) {
@@ -138,6 +215,7 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 	const convertToIMG = this.getNodeParameter('convertToIMG', 0) as string;
 	const renderLink = this.getNodeParameter('renderLink', 0) as boolean;
 	let imageFormat = this.getNodeParameter('imageFormat', 0) as string;
+	const ImageScale = this.getNodeParameter('ImageScale', 0, '1') as string;
 
 	const elements = this.getNodeParameter('elementsImage', 0) as {
 		ElementValues?: Array<{
@@ -147,7 +225,6 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 	};
 
 	const elementValues = elements.ElementValues || [];
-	const ImageScale = this.getNodeParameter('ImageScale', 0, '1') as string;
 
 	let url;
 	if (renderLink) {
@@ -199,8 +276,6 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 			url += '&' + urlParams.join('&');
 		}
 	}
-
-	// console.log('Final URL:', url);
 
 	const credentials = await this.getCredentials('robollyApi');
 	const apiToken = credentials?.apikey as string;
@@ -336,8 +411,6 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 		}
 	}
 
-	// console.log('Final URL:', url);
-
 	let response = null;
 	if (MovieGeneration) {
 		const maxAttempts = this.getNodeParameter('attempts', 0, 1) as number;
@@ -459,7 +532,6 @@ async function handleMovieGenerateRequest(apiToken: string, ApiIntergation: any,
 			});
 			break;
 		} catch (error) {
-			console.log(`Attempt ${i + 1} failed:`, error.message);
 			if (i === 2) {
 				throw new Error(`Failed to initiate video generation after 3 attempts: ${error.message}`);
 			}
