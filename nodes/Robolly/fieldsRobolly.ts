@@ -103,8 +103,8 @@ export const generateImageFields: INodeProperties[] = [
 		name: 'imageFormat',
 		type: 'options',
 		options: [
-			{ name: 'PNG', value: '.png', description: 'Png takes 3 credits to generate an image' },
 			{ name: 'JPG', value: '.jpg', description: 'Jpg takes 1 credit to generate an image' },
+			{ name: 'PNG', value: '.png', description: 'Png takes 3 credits to generate an image' },
 		],
 		displayOptions: {
 			show: {
@@ -119,11 +119,11 @@ export const generateImageFields: INodeProperties[] = [
 		name: 'convertToIMG',
 		type: 'options',
 		options: [
-			{ name: 'AVIF', value: '.avif', description: 'Next-gen image format with superior compression' },
 			{ name: 'None', value: '', description: 'No conversion' },
-			{ name: 'RAW', value: '.raw', description: 'Unprocessed image data format' },
-			{ name: 'TIFF', value: '.tiff', description: 'High-quality lossless image format' },
-			{ name: 'WebP', value: '.webp', description: 'Modern image format with excellent compression' },
+			{ name: '🖼️ AVIF', value: '.avif', description: '🥇 Next-gen image format with superior compression' },
+			{ name: '🖼️ WebP', value: '.webp', description: '🥈 Modern image format with excellent compression' },
+			{ name: '🖼️ TIFF', value: '.tiff', description: '🥉 High-quality lossless image format' },
+			{ name: '🖼️ RAW', value: '.raw', description: '🥉 Unprocessed image data format' },
 		],
 		displayOptions: {
 			show: {
@@ -299,14 +299,14 @@ export const generateVideoFields: INodeProperties[] = [
 		type: 'options',
 
 		options: [
-			{ name: '🎥 GIF', value: '.gif', description: '🥉 Animation format with wide compatibility' },
-			{ name: '🎥 WebM', value: '.webm', description: '🥉 Video format with efficient compression' },
-			{ name: '🎥 WebP', value: '.webp', description: '🥈 Animation format with efficient compression' },
+			{ name: 'None', value: '', description: 'No conversion' },
 			{ name: '📹 AV1', value: '.av1', description: '🥇 High-efficiency video codec with excellent compression' },
+			{ name: '🎥 WebP', value: '.webp', description: '🥈 Animation format with efficient compression' },
+			{ name: '🎥 WebM', value: '.webm', description: '🥉 Video format with efficient compression' },
+			{ name: '🎥 GIF', value: '.gif', description: '🥉 Animation format with wide compatibility' },
 			{ name: '📹 H.264 (AVC)', value: '.h264', description: '🥉 Widely supported video codec with good compression' },
 			{ name: '📹 HEVC (H.265)', value: '.hevc', description: '🥉 High-efficiency video coding with improved compression' },
 			{ name: '📹 VP9', value: '.vp9', description: '🥉 Open-source video codec with efficient compression' },
-			{ name: 'None', value: '', description: 'No conversion' },
 		],
 		displayOptions: {
 			show: {

@@ -1,4 +1,4 @@
-import { INodeType, INodeTypeDescription, IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-workflow';
+import { INodeType, INodeTypeDescription, IExecuteFunctions, INodeExecutionData, IDataObject, NodeConnectionType } from 'n8n-workflow';
 import { operatorRobolly } from './operatorsRobolly';
 import { getTemplateElementsOptions, getTemplatesid } from './operatorMethods';
 import { executeRobolly } from './executeRobolly';
@@ -22,10 +22,8 @@ export class Robolly implements INodeType {
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'Get Data From Robolly',
-		//@ts-ignore
-		inputs: ['main'],
-		//@ts-ignore
-		outputs: ['main'],
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		defaults: {
 			name: 'Robolly',
 		},
