@@ -68,11 +68,11 @@ export const publicFields: INodeProperties[] = [
 		},
 	},
 	{
-		displayName: `Warning Get Renders may show a huge data`,
+		displayName: `⚠️ Warning Get Renders may show a huge data ⚠️`,
 		name: 'RenderWarning',
 		type: 'notice',
 		default: '',
-		description: 'Get Renders may show a huge data',
+		description: '⚠️ Get Renders may show a huge data ⚠️',
 		displayOptions: {
 			show: {
 				operation: ['getRenders'],

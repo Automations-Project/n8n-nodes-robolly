@@ -1,9 +1,4 @@
-import {
-	IAuthenticateGeneric,
-	ICredentialType,
-	INodeProperties,
-	ICredentialTestRequest,
-} from 'n8n-workflow';
+import { IAuthenticateGeneric, ICredentialType, INodeProperties, ICredentialTestRequest } from 'n8n-workflow';
 
 export class robollyApi implements ICredentialType {
 	name = 'robollyApi';

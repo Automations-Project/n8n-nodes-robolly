@@ -9,3 +9,5 @@ yarn.lock
 .npmrc
 dist/
 *.tsbuildinfo
+package-lock.json
+

@@ -36,7 +36,7 @@ export class Robolly implements INodeType {
 		],
 		properties: [
 			{
-				displayName: '<div hidden>Join the official <a href="https://www.facebook.com/groups/robolly" target="_blank">Facebook group</a>, or participate in discussions on our not-official <a href="https://discord.gg/YcV2hT87" target="_blank">Discord server</a>.</div>',
+				displayName: '<div hidden>🌟 Connect with the community! Join our official <a href="https://www.facebook.com/groups/robolly" target="_blank">Facebook Group</a> or engage in discussions on our unofficial <a href="https://discord.gg/YcV2hT87" target="_blank">Discord Server</a>. 🚀</div>',
 				name: 'tip',
 				type: 'notice',
 				default: '',
