@@ -249,11 +249,12 @@ export async function handleGetTemplateElements(this: IExecuteFunctions) {
 }
 
 export async function handleGenerateImage(this: IExecuteFunctions) {
-	const imageTemplate = this.getNodeParameter('imageTemplate', 0) as string;
-	const convertToIMG = this.getNodeParameter('convertToIMG', 0) as string;
-	const renderLink = this.getNodeParameter('renderLink', 0) as boolean;
-	let imageFormat = this.getNodeParameter('imageFormat', 0) as string;
+	const imageTemplate = this.getNodeParameter('imageTemplate', 0, '') as string;
+	const convertToIMG = this.getNodeParameter('convertToIMG', 0, '') as string;
+	const renderLink = this.getNodeParameter('renderLink', 0, false) as boolean;
+	let imageFormat = this.getNodeParameter('imageFormat', 0, '') as string;
 	const ImageScale = this.getNodeParameter('ImageScale', 0, '1') as string;
+	const generateLinkOnly = this.getNodeParameter('generateLinkOnly', 0, false) as boolean;
 
 	const elements = this.getNodeParameter('elementsImage', 0) as {
 		ElementValues?: Array<{
@@ -314,6 +315,9 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 			url += '&' + urlParams.join('&');
 		}
 	}
+	if (generateLinkOnly) {
+		return { url: url };
+	}
 
 	const credentials = await this.getCredentials('robollyApi');
 	const apiToken = credentials?.apikey as string;
@@ -326,7 +330,6 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 		},
 		responseType: 'arraybuffer',
 	});
-
 	// Get the file extension from the imageFormat
 	const fileExtension = imageFormat.startsWith('.') ? imageFormat.substring(1) : imageFormat;
 

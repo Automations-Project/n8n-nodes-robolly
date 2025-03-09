@@ -2,6 +2,18 @@ import { INodeProperties } from 'n8n-workflow';
 export const publicFields: INodeProperties[] = [
 	//this is not a public field but  it need to be here because of fields ordering
 	{
+		displayName: '⚡ Generate Link Only ⚡',
+		name: 'generateLinkOnly',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to return only the render link',
+		displayOptions: {
+			show: {
+				operation: ['generateImage'],
+			},
+		},
+	},
+	{
 		displayName: 'Hidden Render Link',
 		name: 'renderLink',
 		type: 'boolean',
@@ -128,6 +140,7 @@ export const generateImageFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				operation: ['generateImage'],
+				generateLinkOnly: [false],
 			},
 		},
 		default: '',
@@ -183,6 +196,7 @@ export const generateImageFields: INodeProperties[] = [
 			show: {
 				operation: ['generateImage'],
 				convertToIMG: ['.webp', '.avif', '.tiff', '.raw'],
+				generateLinkOnly: [false],
 			},
 		},
 		default: '',
