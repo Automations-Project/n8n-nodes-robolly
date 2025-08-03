@@ -1,64 +1,150 @@
-import ffmpeg from 'fluent-ffmpeg';
+import { spawn } from 'child_process';
 import fs from 'fs';
-import { file } from 'tmp-promise';
-import { IBinaryData, IExecuteFunctions } from 'n8n-workflow';
-import ffmpegPath from 'ffmpeg-static';
+import { IBinaryData, IExecuteFunctions, NodeApiError, NodeOperationError } from 'n8n-workflow';
+import { createTempFile } from './utils';
 
-if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
-else throw new Error('ffmpeg-static path not found');
+export async function checkFFmpegAvailability(): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const ffmpeg = spawn('ffmpeg', ['-version'], { stdio: ['pipe', 'pipe', 'pipe'] });
+		
+		ffmpeg.on('close', (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error('FFmpeg not working properly'));
+			}
+		});
+		
+		ffmpeg.on('error', (error) => {
+			if (error.message.includes('ENOENT')) {
+				reject(new Error('FFMPEG_NOT_FOUND'));
+			} else {
+				reject(new Error(`FFmpeg error: ${error.message}`));
+			}
+		});
+	});
+}
+
+export async function checkFFprobeAvailability(): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const ffprobe = spawn('ffprobe', ['-version'], { stdio: ['pipe', 'pipe', 'pipe'] });
+		
+		ffprobe.on('close', (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error('FFprobe not working properly'));
+			}
+		});
+		
+		ffprobe.on('error', (error) => {
+			if (error.message.includes('ENOENT')) {
+				reject(new Error('FFPROBE_NOT_FOUND'));
+			} else {
+				reject(new Error(`FFprobe error: ${error.message}`));
+			}
+		});
+	});
+}
+
+export async function execFFmpeg(args: string[]): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const ffmpeg = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+		
+		let stderr = '';
+		
+		ffmpeg.stderr.on('data', (data) => {
+			stderr += data.toString();
+		});
+		
+		ffmpeg.on('close', (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`FFmpeg process exited with code ${code}: ${stderr}`));
+			}
+		});
+		
+		ffmpeg.on('error', (error) => {
+			if (error.message.includes('ENOENT')) {
+				reject(new Error('FFMPEG_NOT_FOUND'));
+			} else {
+				reject(new Error(`Failed to start FFmpeg: ${error.message}`));
+			}
+		});
+	});
+}
+
+export async function execFFprobeWithOutput(args: string[]): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const ffprobe = spawn('ffprobe', args);
+		
+		let stdout = '';
+		let stderr = '';
+		
+		ffprobe.stdout.on('data', (data) => {
+			stdout += data.toString();
+		});
+		
+		ffprobe.stderr.on('data', (data) => {
+			stderr += data.toString();
+		});
+		
+		ffprobe.on('close', (code) => {
+			if (code === 0) {
+				resolve(stdout);
+			} else {
+				reject(new Error(`FFprobe failed with code ${code}: ${stderr}`));
+			}
+		});
+		
+		ffprobe.on('error', (error) => {
+			if (error.message.includes('ENOENT')) {
+				reject(new Error('FFPROBE_NOT_FOUND'));
+			} else {
+				reject(new Error(`Failed to start FFprobe: ${error.message}`));
+			}
+		});
+	});
+}
 
 export async function mp4ToGifWithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	// Create temporary file paths
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpPalettePath, cleanup: cleanupPalette } = await file({ postfix: '.png' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.gif' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpPalettePath, cleanup: cleanupPalette } = await createTempFile('.png');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.gif');
 
 	try {
-		// Write the input MP4 video buffer to a tmp file
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		// ───────────────────────────────────────────────
-		// 1. Generate a palette (first pass)
-		//    Adjust fps / scale / etc. as needed
-		// ───────────────────────────────────────────────
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				// Set a lower fps for smaller size (e.g., 10). Adjust as needed.
-				// Lanczos scaling often provides a good trade-off between quality & size.
-				.outputOptions(['-vf', 'fps=10,scale=320:-1:flags=lanczos,palettegen=stats_mode=full'])
-				.output(tmpPalettePath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		// Generate optimal color palette for better GIF quality
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos,palettegen=stats_mode=full',
+			'-y',
+			tmpPalettePath
+		]);
 
-		// ───────────────────────────────────────────────
-		// 2. Use the palette to convert to GIF (second pass)
-		// ───────────────────────────────────────────────
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				.input(tmpPalettePath)
-				// Applies the palette to reduce banding and keep file size lower
-				.outputOptions(['-lavfi', 'fps=10,scale=320:-1:flags=lanczos [x]; [x][1:v] paletteuse'])
-				.format(extentionOutput || 'gif')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		// Convert using the generated palette for better colors and compression
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-i', tmpPalettePath,
+			'-lavfi', 'fps=10,scale=320:-1:flags=lanczos [x]; [x][1:v] paletteuse',
+			'-f', extentionOutput.replace('.', '') || 'gif',
+			'-y',
+			tmpOutputPath
+		]);
 
-		// Read the output GIF back into a buffer
 		const gifBuffer = fs.readFileSync(tmpOutputPath);
 
-		// Prepare the binary data (n8n-specific helper)
 		const binaryData = await this.helpers.prepareBinaryData(gifBuffer, extentionOutput || 'gif');
 
-		// Build final response
 		const responseData = {
 			json: {
 				success: true,
 				format: '.gif',
-				size: gifBuffer.length, // final size in bytes
+				size: gifBuffer.length,
 				url: url,
 			},
 			binary: {
@@ -66,7 +152,6 @@ export async function mp4ToGifWithCompression(this: IExecuteFunctions, videoBuff
 			},
 		};
 
-		// Cleanup temp files
 		await cleanupInput();
 		await cleanupPalette();
 		await cleanupOutput();
@@ -76,68 +161,50 @@ export async function mp4ToGifWithCompression(this: IExecuteFunctions, videoBuff
 		await cleanupInput();
 		await cleanupPalette();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function mp4ToWebPWithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	// Create temporary file paths
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.webp' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.webp');
 
 	try {
-		// Write the input MP4 video buffer to a temp file
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		// ───────────────────────────────────────────────
-		// Convert MP4 -> WebP with compression
-		// Adjust parameters below (fps, scale, q:v, etc.) as needed
-		// ───────────────────────────────────────────────
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				// fps=10, scale=320 (width), keep aspect ratio; Lanczos scaler for quality
-				.outputOptions([
-					'-vf',
-					'fps=10,scale=320:-1:flags=lanczos',
-					// Use libwebp for WebP output
-					'-c:v',
-					'libwebp',
-					// Set the quality parameter: 0 (best) to 100 (worst); the lower, the higher the quality
-					'-q:v',
-					'50',
-					// 0 for non-lossless, helps reduce size
-					'-lossless',
-					'0',
-					// The WebP preset can be 'default', 'drawing', 'photo', 'picture', or 'icon'
-					'-preset',
-					'default',
-					// 0 = infinite loop (like an animated GIF). Set to 1 for no looping.
-					'-loop',
-					'0',
-					// Remove audio
-					'-an',
-					'-vsync',
-					'0',
-				])
-				.format(extentionOutput || 'webp')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos',
+			'-c:v', 'libwebp',
+			'-q:v', '50',
+			'-lossless', '0',
+			'-preset', 'default',
+			'-loop', '0',
+			'-an',
+			'-vsync', '0',
+			'-f', extentionOutput.replace('.', '') || 'webp',
+			'-y',
+			tmpOutputPath
+		]);
 
-		// Read the output WebP back into a buffer
 		const webpBuffer = fs.readFileSync(tmpOutputPath);
 
-		// Prepare the binary data for n8n
 		const binaryData = await this.helpers.prepareBinaryData(webpBuffer, extentionOutput || 'webp');
 
-		// Build final response
 		const responseData = {
 			json: {
 				success: true,
 				format: '.webp',
-				size: webpBuffer.length, // final size in bytes
+				size: webpBuffer.length,
 				url: url,
 			},
 			binary: {
@@ -145,7 +212,6 @@ export async function mp4ToWebPWithCompression(this: IExecuteFunctions, videoBuf
 			},
 		};
 
-		// Cleanup temp files
 		await cleanupInput();
 		await cleanupOutput();
 
@@ -153,48 +219,39 @@ export async function mp4ToWebPWithCompression(this: IExecuteFunctions, videoBuf
 	} catch (error) {
 		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function mp4ToAV1WithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.av1' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.mp4');
 
 	try {
-		// Write the input MP4 video buffer
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				// Scale & fps
-				.outputOptions([
-					'-vf',
-					'fps=10,scale=320:-1:flags=lanczos',
-					// Use AV1 encoder
-					'-c:v',
-					'libaom-av1',
-					// Use a CRF (Constant Rate Factor) for quality control
-					'-crf',
-					'30',
-					// 0 = constant quality mode (no cap on bitrate)
-					'-b:v',
-					'0',
-					// Speed/Quality trade-off. 0=best, 8=fastest
-					'-cpu-used',
-					'4',
-					// Ensure correct pixel format
-					'-pix_fmt',
-					'yuv420p',
-					// Remove audio
-					'-an',
-				])
-				.format(extentionOutput || 'mp4')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos',
+			'-c:v', 'libaom-av1',
+			'-crf', '30',
+			'-b:v', '0',
+			'-cpu-used', '4',
+			'-pix_fmt', 'yuv420p',
+			'-an',
+			'-f', extentionOutput.replace('.', '') || 'mp4',
+			'-y',
+			tmpOutputPath
+		]);
 
 		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'mp4');
@@ -218,43 +275,38 @@ export async function mp4ToAV1WithCompression(this: IExecuteFunctions, videoBuff
 	} catch (error) {
 		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function mp4ToHEVCWithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.mp4' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.mp4');
 
 	try {
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				.outputOptions([
-					'-vf',
-					'fps=10,scale=320:-1:flags=lanczos',
-					// Use libx265 for HEVC (H.265)
-					'-c:v',
-					'libx265',
-					// Constant Rate Factor for quality, lower is higher quality
-					'-crf',
-					'28',
-					// Preset can be ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
-					'-preset',
-					'medium',
-					// Ensure correct pixel format
-					'-pix_fmt',
-					'yuv420p',
-					// Remove audio
-					'-an',
-				])
-				.format('mp4')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos',
+			'-c:v', 'libx265',
+			'-crf', '28',
+			'-preset', 'medium',
+			'-pix_fmt', 'yuv420p',
+			'-an',
+			'-f', 'mp4',
+			'-y',
+			tmpOutputPath
+		]);
 
 		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'mp4');
@@ -278,44 +330,39 @@ export async function mp4ToHEVCWithCompression(this: IExecuteFunctions, videoBuf
 	} catch (error) {
 		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function mp4ToVP9WithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.webm' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.webm');
 
 	try {
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				.outputOptions([
-					'-vf',
-					'fps=10,scale=320:-1:flags=lanczos',
-					'-c:v',
-					'libvpx-vp9',
-					// CRF (quality), range: 0–63; lower = better quality
-					'-crf',
-					'30',
-					// Bitrate target (optional). If you omit, you get a purely CRF-based encode.
-					'-b:v',
-					'1M',
-					// Good, best, realtime
-					'-deadline',
-					'good',
-					// Ensure correct pixel format
-					'-pix_fmt',
-					'yuv420p',
-					'-an', // no audio
-				])
-				.format(extentionOutput || 'webm')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos',
+			'-c:v', 'libvpx-vp9',
+			'-crf', '30',
+			'-b:v', '1M',
+			'-deadline', 'good',
+			'-pix_fmt', 'yuv420p',
+			'-an',
+			'-f', extentionOutput.replace('.', '') || 'webm',
+			'-y',
+			tmpOutputPath
+		]);
 
 		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'webm');
@@ -339,43 +386,38 @@ export async function mp4ToVP9WithCompression(this: IExecuteFunctions, videoBuff
 	} catch (error) {
 		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function mp4ToH264WithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.mp4' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.mp4');
 
 	try {
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				.outputOptions([
-					'-vf',
-					'fps=10,scale=320:-1:flags=lanczos',
-					// Use libx264 for H.264/AVC
-					'-c:v',
-					'libx264',
-					// CRF for quality; typical range ~18–28 (18=high quality, 28=lower)
-					'-crf',
-					'23',
-					// Preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
-					'-preset',
-					'medium',
-					// Force pixel format
-					'-pix_fmt',
-					'yuv420p',
-					// Remove audio
-					'-an',
-				])
-				.format(extentionOutput || 'mp4')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos',
+			'-c:v', 'libx264',
+			'-crf', '23',
+			'-preset', 'medium',
+			'-pix_fmt', 'yuv420p',
+			'-an',
+			'-f', extentionOutput.replace('.', '') || 'mp4',
+			'-y',
+			tmpOutputPath
+		]);
 
 		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'mp4');
@@ -399,65 +441,49 @@ export async function mp4ToH264WithCompression(this: IExecuteFunctions, videoBuf
 	} catch (error) {
 		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function mp4ToWebMWithCompression(this: IExecuteFunctions, videoBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	// Create temporary file paths
-	const { path: tmpInputPath, cleanup: cleanupInput } = await file({ postfix: '.mp4' });
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.webm' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.mp4');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.webm');
 
 	try {
-		// Write the input MP4 video buffer to a tmp file
+		await checkFFmpegAvailability();
+		
 		await this.helpers.writeContentToFile(tmpInputPath, videoBuffer);
 
-		// ───────────────────────────────────────────────
-		// Convert MP4 -> WebM (VP9)
-		// ───────────────────────────────────────────────
-		await new Promise<void>((resolve, reject) => {
-			ffmpeg(tmpInputPath)
-				// You can adjust fps and scale as needed
-				.outputOptions([
-					'-vf',
-					'fps=10,scale=320:-1:flags=lanczos',
-					// Use VP9 codec
-					'-c:v',
-					'libvpx-vp9',
-					// CRF for quality (lower = better quality, bigger file size), typical range: 10–40
-					'-crf',
-					'30',
-					// Bitrate target. Optional if using CRF, but can help set an upper bound.
-					'-b:v',
-					'1M',
-					// Speed/quality trade-off: (good, best, realtime)
-					'-deadline',
-					'good',
-					// Force the pixel format
-					'-pix_fmt',
-					'yuv420p',
-					// Remove audio track
-					'-an',
-				])
-				.format(extentionOutput || 'webm')
-				.output(tmpOutputPath)
-				.on('end', () => resolve())
-				.on('error', reject)
-				.run();
-		});
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-vf', 'fps=10,scale=320:-1:flags=lanczos',
+			'-c:v', 'libvpx-vp9',
+			'-crf', '30',
+			'-b:v', '1M',
+			'-deadline', 'good',
+			'-pix_fmt', 'yuv420p',
+			'-an',
+			'-f', extentionOutput.replace('.', '') || 'webm',
+			'-y',
+			tmpOutputPath
+		]);
 
-		// Read the output WebM back into a buffer
 		const webmBuffer = fs.readFileSync(tmpOutputPath);
 
-		// Prepare the binary data for n8n
 		const binaryData = await this.helpers.prepareBinaryData(webmBuffer, extentionOutput || 'webm');
 
-		// Build final response
 		const responseData = {
 			json: {
 				success: true,
 				format: '.webm (VP9)',
-				size: webmBuffer.length, // final size in bytes
+				size: webmBuffer.length,
 				url: url,
 			},
 			binary: {
@@ -465,7 +491,6 @@ export async function mp4ToWebMWithCompression(this: IExecuteFunctions, videoBuf
 			},
 		};
 
-		// Cleanup temp files
 		await cleanupInput();
 		await cleanupOutput();
 
@@ -473,6 +498,13 @@ export async function mp4ToWebMWithCompression(this: IExecuteFunctions, videoBuf
 	} catch (error) {
 		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }

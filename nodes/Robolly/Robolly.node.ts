@@ -1,18 +1,33 @@
 import { INodeType, INodeTypeDescription, IExecuteFunctions, INodeExecutionData, IDataObject, NodeConnectionType } from 'n8n-workflow';
-import { operatorRobolly } from './operatorsRobolly';
-import { getTemplateElementsOptions, getTemplatesid } from './operatorMethods';
-import { executeRobolly } from './executeRobolly';
-import { generateImageFields, generateVideoFields, getTemplatesFields, publicFields } from './fieldsRobolly';
+import { operatorRobolly } from './operators';
+import { getTemplateElementsOptions, getTemplatesid } from './methods';
+import { executeRobolly } from './execute';
+import { generateImageFields, generateVideoFields, getTemplatesFields, publicFields } from './fields';
 export class Robolly implements INodeType {
 	public async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const operation = this.getNodeParameter('operation', 0) as string;
-		const responseData = await executeRobolly.call(this, operation);
+		const items = this.getInputData();
+		const returnData: INodeExecutionData[] = [];
 
-		if (Array.isArray(responseData) && responseData.length > 0 && responseData[0].hasOwnProperty('json')) {
-			return [responseData as INodeExecutionData[]];
+		for (let i = 0; i < items.length; i++) {
+			const operation = this.getNodeParameter('operation', i) as string;
+			const responseData = await executeRobolly.call(this, operation, i);
+
+			if (Array.isArray(responseData) && responseData.length > 0 && responseData[0].hasOwnProperty('json')) {
+				for (const item of responseData as INodeExecutionData[]) {
+					returnData.push({
+						...item,
+						pairedItem: { item: i }
+					});
+				}
+			} else {
+				returnData.push({
+					json: responseData as unknown as IDataObject,
+					pairedItem: { item: i }
+				});
+			}
 		}
 
-		return [[{ json: responseData as IDataObject }]];
+		return [returnData];
 	}
 	description: INodeTypeDescription = {
 		displayName: 'Robolly',
@@ -35,12 +50,6 @@ export class Robolly implements INodeType {
 			},
 		],
 		properties: [
-			{
-				displayName: '<div hidden>🌟 Connect with the community! Join our official <a href="https://www.facebook.com/groups/robolly" target="_blank">Facebook Group</a> or engage in discussions on our unofficial <a href="https://nskha.com/discord" target="_blank">Discord Server</a>. 🚀</div>',
-				name: 'tip',
-				type: 'notice',
-				default: '',
-			},
 			{
 				displayName: 'Operation',
 				name: 'operation',

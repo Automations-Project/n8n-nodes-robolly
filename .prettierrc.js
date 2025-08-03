@@ -47,12 +47,5 @@ module.exports = {
 	/**
 	 * https://prettier.io/docs/en/options.html#print-width
 	 */
-	printWidth: 300,
-
-	/**
-	 * Controls how Prettier formats imports
-	 */
-	importOrder: ['^@core/(.*)$', '^@server/(.*)$', '^@ui/(.*)$', '^[./]'],
-	importOrderSeparation: false,
-	importOrderSortSpecifiers: true,
+	printWidth: 100,
 };

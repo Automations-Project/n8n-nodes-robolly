@@ -1,6 +1,6 @@
 import { INodeProperties } from 'n8n-workflow';
 export const publicFields: INodeProperties[] = [
-	//this is not a public field but  it need to be here because of fields ordering
+	// This field appears here due to fields ordering requirements
 	{
 		displayName: '⚡ Generate Link Only ⚡',
 		name: 'generateLinkOnly',

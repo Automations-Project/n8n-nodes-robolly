@@ -3,6 +3,7 @@ import { IAuthenticateGeneric, ICredentialType, INodeProperties, ICredentialTest
 export class robollyApi implements ICredentialType {
 	name = 'robollyApi';
 	displayName = 'Robolly API';
+	icon = 'file:robolly.svg' as const;
 	documentationUrl = 'https://robolly.com/docs/api-reference/';
 	properties: INodeProperties[] = [
 		{

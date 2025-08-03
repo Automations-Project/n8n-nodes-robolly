@@ -1,7 +1,6 @@
 import { IExecuteFunctions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { genericHttpRequest, RobollyResponse } from '../../GenericFunctions';
 import { VideoExtentionConvertor, ImageExtentionConvertor, calculateTotalDuration } from './extentionConvetor';
-import axios from 'axios';
 
 export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	try {
@@ -25,7 +24,7 @@ export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INode
 				params.paginationCursorNext = cursor;
 			}
 
-			const response = (await genericHttpRequest.call(this, 'GET', `/v1/templates`, { params })) as RobollyResponse;
+			const response = (await genericHttpRequest.call(this, 'GET', '/v1/templates', { params })) as RobollyResponse;
 
 			if (!response?.templates || !Array.isArray(response.templates)) {
 				throw new Error('Invalid response format');
@@ -54,7 +53,6 @@ export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INode
 			}
 		}
 
-		// Update descriptions with final count
 		allTemplates = allTemplates.map((template) => ({
 			...template,
 			description: `Template ID: ${template.value}`,
@@ -62,7 +60,7 @@ export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INode
 
 		return allTemplates;
 	} catch (error) {
-		console.error('Error loading templates:', error);
+		this.logger.error('Error loading templates:', error);
 		return [];
 	}
 }
@@ -83,7 +81,6 @@ export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): P
 			return options;
 		}
 
-		// First pass: Add all non-rect elements
 		response.acceptedModifications.forEach((item: any) => {
 			if (item.elementType !== 'rect') {
 				options.push({
@@ -94,7 +91,6 @@ export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): P
 			}
 		});
 
-		// Second pass: Add text color options
 		response.acceptedModifications.forEach((item: any) => {
 			if (item.elementType === 'text') {
 				options.push({
@@ -105,7 +101,6 @@ export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): P
 			}
 		});
 
-		// Third pass: Add rect elements and their colors
 		response.acceptedModifications.forEach((item: any) => {
 			if (item.elementType === 'rect') {
 				options.push({
@@ -123,15 +118,15 @@ export async function getTemplateElementsOptions(this: ILoadOptionsFunctions): P
 
 		return options;
 	} catch (error) {
-		console.error('Error in getTemplateElements:', error);
+		this.logger.error('Error in getTemplateElements:', error);
 		return options;
 	}
 }
 
-export async function handleGetTemplates(this: IExecuteFunctions) {
-	const templatesType = this.getNodeParameter('templatesType', 0) as string;
-	const returnAllItems = this.getNodeParameter('returnAllItems', 0) as boolean;
-	const limitItems = returnAllItems ? '' : (this.getNodeParameter('limitItems', 0) as string);
+export async function handleGetTemplates(this: IExecuteFunctions, itemIndex = 0) {
+	const templatesType = this.getNodeParameter('templatesType', itemIndex) as string;
+	const returnAllItems = this.getNodeParameter('returnAllItems', itemIndex) as boolean;
+	const limitItems = returnAllItems ? '' : (this.getNodeParameter('limitItems', itemIndex) as string);
 
 	let allTemplates: any[] = [];
 	let hasMore = true;
@@ -184,17 +179,16 @@ export async function handleGetTemplates(this: IExecuteFunctions) {
 			}
 		}
 
-		// Return array of items directly
 		return this.helpers.returnJsonArray(allTemplates);
 	} catch (error) {
-		console.error('Error fetching templates:', error);
+		this.logger.error('Error fetching templates:', error);
 		throw error;
 	}
 }
 
-export async function handleGetRenders(this: IExecuteFunctions) {
-	const returnAllItems = this.getNodeParameter('returnAllItems', 0) as boolean;
-	const limitItems = returnAllItems ? '' : (this.getNodeParameter('limitItems', 0) as string);
+export async function handleGetRenders(this: IExecuteFunctions, itemIndex = 0) {
+	const returnAllItems = this.getNodeParameter('returnAllItems', itemIndex) as boolean;
+	const limitItems = returnAllItems ? '' : (this.getNodeParameter('limitItems', itemIndex) as string);
 
 	let allRenders: any[] = [];
 	let hasMore = true;
@@ -234,29 +228,28 @@ export async function handleGetRenders(this: IExecuteFunctions) {
 			}
 		}
 
-		// Return array of items directly
 		return this.helpers.returnJsonArray(allRenders);
 	} catch (error) {
 		throw error;
 	}
 }
 
-export async function handleGetTemplateElements(this: IExecuteFunctions) {
-	const templateId = this.getNodeParameter('templateId', 0) as string;
+export async function handleGetTemplateElements(this: IExecuteFunctions, itemIndex = 0) {
+	const templateId = this.getNodeParameter('templateId', itemIndex) as string;
 	const responseData = (await genericHttpRequest.call(this, 'GET', `/v1/templates/${templateId}/accepted-modifications`, {})) as RobollyResponse;
 
 	return responseData;
 }
 
-export async function handleGenerateImage(this: IExecuteFunctions) {
-	const imageTemplate = this.getNodeParameter('imageTemplate', 0, '') as string;
-	const convertToIMG = this.getNodeParameter('convertToIMG', 0, '') as string;
-	const renderLink = this.getNodeParameter('renderLink', 0, false) as boolean;
-	let imageFormat = this.getNodeParameter('imageFormat', 0, '') as string;
-	const ImageScale = this.getNodeParameter('ImageScale', 0, '1') as string;
-	const generateLinkOnly = this.getNodeParameter('generateLinkOnly', 0, false) as boolean;
+export async function handleGenerateImage(this: IExecuteFunctions, itemIndex = 0) {
+	const imageTemplate = this.getNodeParameter('imageTemplate', itemIndex, '') as string;
+	const convertToIMG = this.getNodeParameter('convertToIMG', itemIndex, '') as string;
+	const renderLink = this.getNodeParameter('renderLink', itemIndex, false) as boolean;
+	let imageFormat = this.getNodeParameter('imageFormat', itemIndex, '') as string;
+	const ImageScale = this.getNodeParameter('ImageScale', itemIndex, '1') as string;
+	const generateLinkOnly = this.getNodeParameter('generateLinkOnly', itemIndex, false) as boolean;
 
-	const elements = this.getNodeParameter('elementsImage', 0) as {
+	const elements = this.getNodeParameter('elementsImage', itemIndex) as {
 		ElementValues?: Array<{
 			elementNameImage: string;
 			valueImage: string;
@@ -267,13 +260,11 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 
 	let url;
 	if (renderLink) {
-		// Create query parameters for render link
 		const queryParams: Record<string, string> = {
 			template: imageTemplate,
 			scale: ImageScale,
 		};
 
-		// Add element modifications to query params
 		elementValues.forEach(({ elementNameImage, valueImage }) => {
 			if (elementNameImage && valueImage) {
 				if (elementNameImage.includes('.color')) {
@@ -284,14 +275,11 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 			}
 		});
 
-		// Create URLSearchParams and encode as base64url
 		const query = new URLSearchParams(queryParams);
 		const encoded = Buffer.from(query.toString(), 'utf8').toString('base64url');
 
-		// Create the hidden render link
 		url = `https://api.robolly.com/rd/${encoded}${imageFormat}`;
 	} else {
-		// Original URL creation logic
 		url = `https://api.robolly.com/templates/${imageTemplate}/render${imageFormat}?scale=${ImageScale}`;
 		const urlParams: string[] = [];
 
@@ -322,32 +310,32 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 	const credentials = await this.getCredentials('robollyApi');
 	const apiToken = credentials?.apikey as string;
 
-	const response = await axios({
+	const response = await this.helpers.httpRequest({
 		method: 'GET',
 		url: url,
 		headers: {
 			Authorization: `Bearer ${apiToken}`,
 		},
-		responseType: 'arraybuffer',
+		json: false,
+		returnFullResponse: true,
+		encoding: 'arraybuffer' as any,
 	});
-	// Get the file extension from the imageFormat
+
 	const fileExtension = imageFormat.startsWith('.') ? imageFormat.substring(1) : imageFormat;
 
-	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.data), `robolly-image${imageFormat}`, `image/${fileExtension}`);
+	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.body), `robolly-image${imageFormat}`, `image/${fileExtension}`);
 
 	if (convertToIMG !== '' && convertToIMG !== '.png') {
-		const extentionOutput = this.getNodeParameter('extentionOutput', 0) as string;
-		const imageBuffer = Buffer.from(response.data);
+		const extentionOutput = this.getNodeParameter('extentionOutput', itemIndex) as string;
+		const imageBuffer = Buffer.from(response.body);
 		const result = await ImageExtentionConvertor.call(
 			this,
 			imageBuffer,
 			url,
 			convertToIMG,
-			// Use the provided extension output or fallback to the conversion format
 			extentionOutput || convertToIMG,
 		);
 		if (result) {
-			// Update both the binary data and the response data
 			return [
 				{
 					json: {
@@ -362,7 +350,6 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 		}
 	}
 
-	// Return the data in n8n's expected format
 	return [
 		{
 			json: {
@@ -376,20 +363,19 @@ export async function handleGenerateImage(this: IExecuteFunctions) {
 	];
 }
 
-export async function handleGenerateVideo(this: IExecuteFunctions) {
+export async function handleGenerateVideo(this: IExecuteFunctions, itemIndex = 0) {
 	const credentials = await this.getCredentials('robollyApi');
 	const apiToken = credentials?.apikey as string;
-	const MovieGeneration = this.getNodeParameter('movieGeneration', 0) as boolean;
-	const videoTemplate = !MovieGeneration ? (this.getNodeParameter('videoTemplate', 0) as string) : '';
-	const videoFormat = !MovieGeneration ? (this.getNodeParameter('videoFormat', 0) as string) : '';
-	const convertToVideo = !MovieGeneration ? (this.getNodeParameter('convertToVideo', 0) as string) : '';
-	const videoQuality = !MovieGeneration ? (this.getNodeParameter('quality', 0, '1') as string) : '';
-	const renderLink = !MovieGeneration ? (this.getNodeParameter('renderLink', 0) as boolean) : false;
-	let duration = !MovieGeneration ? (this.getNodeParameter('duration', 0, 0) as number) : 0;
-	const ApiIntergation = MovieGeneration ? (this.getNodeParameter('ApiIntergation', 0, {}) as JSON) : {};
-	const fps = this.getNodeParameter('fps', 0, 30) as number;
+	const MovieGeneration = this.getNodeParameter('movieGeneration', itemIndex) as boolean;
+	const videoTemplate = !MovieGeneration ? (this.getNodeParameter('videoTemplate', itemIndex) as string) : '';
+	const videoFormat = !MovieGeneration ? (this.getNodeParameter('videoFormat', itemIndex) as string) : '';
+	const convertToVideo = !MovieGeneration ? (this.getNodeParameter('convertToVideo', itemIndex) as string) : '';
+	const renderLink = !MovieGeneration ? (this.getNodeParameter('renderLink', itemIndex) as boolean) : false;
+	let duration = !MovieGeneration ? (this.getNodeParameter('duration', itemIndex, 0) as number) : 0;
+	const ApiIntergation = MovieGeneration ? (this.getNodeParameter('ApiIntergation', itemIndex, {}) as JSON) : {};
+	const fps = this.getNodeParameter('fps', itemIndex, 30) as number;
 	const elements = !MovieGeneration
-		? (this.getNodeParameter('elementsVideo', 0) as {
+		? (this.getNodeParameter('elementsVideo', itemIndex) as {
 				ElementValues?: Array<{
 					elementNameVideo: string;
 					valueVideo: string;
@@ -398,12 +384,10 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 		: { ElementValues: [] };
 	const elementValues = elements.ElementValues || [];
 
-	let url;
+	let url: string | undefined;
 	if (!MovieGeneration && renderLink) {
-		// Create query parameters for render link
 		const queryParams: Record<string, string> = {
 			template: videoTemplate,
-			scale: videoQuality,
 			fps: fps.toString(),
 		};
 
@@ -411,7 +395,6 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 			queryParams.duration = (duration * 1000).toString();
 		}
 
-		// Add element modifications to query params
 		elementValues.forEach(({ elementNameVideo, valueVideo }) => {
 			if (elementNameVideo && valueVideo) {
 				if (elementNameVideo.includes('.color')) {
@@ -422,15 +405,11 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 			}
 		});
 
-		// Create URLSearchParams and encode as base64url
 		const query = new URLSearchParams(queryParams);
 		const encoded = Buffer.from(query.toString(), 'utf8').toString('base64url');
-
-		// Create the hidden render link
 		url = `https://api.robolly.com/rd/${encoded}.mp4`;
 	} else if (!MovieGeneration) {
-		// Original URL creation logic
-		url = `https://api.robolly.com/templates/${videoTemplate}/render.mp4?scale=${videoQuality}`;
+		url = `https://api.robolly.com/templates/${videoTemplate}/render.mp4`;
 		const urlParams: string[] = [];
 
 		if (duration) {
@@ -456,44 +435,59 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 		}
 
 		if (urlParams.length) {
-			url += '&' + urlParams.join('&');
+			url += '?' + urlParams.join('&');
 		}
 	}
 
 	let response = null;
 	if (MovieGeneration) {
-		const maxAttempts = this.getNodeParameter('attempts', 0, 1) as number;
-		return await handleMovieGenerateRequest(apiToken, ApiIntergation, maxAttempts);
+		const maxAttempts = this.getNodeParameter('attempts', itemIndex, 1) as number;
+		return await handleMovieGenerateRequest.call(this, apiToken, ApiIntergation, maxAttempts);
 	} else {
-		response = await axios({
+		if (!url) {
+			throw new Error('URL is required for video generation');
+		}
+		
+		const initialResponse = await this.helpers.request({
 			method: 'GET',
-			url: url,
+			uri: url,
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
 			},
-			responseType: 'arraybuffer',
+			followRedirect: false,
+			resolveWithFullResponse: true,
+			simple: false,
 		});
+
+		// Follow redirect without auth headers to avoid auth errors with S3
+		if (initialResponse.statusCode >= 300 && initialResponse.statusCode < 400 && initialResponse.headers.location) {
+			response = await this.helpers.request({
+				method: 'GET',
+				uri: initialResponse.headers.location,
+				encoding: null,
+				resolveWithFullResponse: true,
+			});
+		} else {
+			response = initialResponse;
+		}
 	}
 
-	// Get the file extension from the videoFormat
 	const fileExtension = videoFormat.startsWith('.') ? videoFormat.substring(1) : videoFormat;
-
-	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.data), `robolly-video${videoFormat}`, `video/${fileExtension}`);
+	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.body), `robolly-video${videoFormat}`, `video/${fileExtension}`);
 
 	let responseData = {
 		json: {
 			success: true,
-			url: url,
+			url: url || '',
 		},
 		binary: {
 			data: binaryData,
 		},
 	};
 
-	// If GIF format was selected, convert MP4 to GIF
 	if (convertToVideo !== '' && convertToVideo !== '.mp4') {
-		const extentionOutput = this.getNodeParameter('extentionOutput', 0) as string;
-		const videoBuffer = Buffer.from(response?.data || '');
+		const extentionOutput = this.getNodeParameter('extentionOutput', itemIndex) as string;
+		const videoBuffer = Buffer.from(response?.body || '');
 		const { responseData: gifResponse } = await VideoExtentionConvertor.call(this, videoBuffer, url || '', convertToVideo, extentionOutput);
 		responseData = gifResponse;
 	}
@@ -501,22 +495,22 @@ export async function handleGenerateVideo(this: IExecuteFunctions) {
 	return [responseData];
 }
 
-async function handleMovieGenerateRequest(apiToken: string, ApiIntergation: any, attempts: number) {
+async function handleMovieGenerateRequest(this: IExecuteFunctions, apiToken: string, ApiIntergation: any, attempts: number) {
 	const jsonObject = typeof ApiIntergation === 'string' ? JSON.parse(ApiIntergation) : ApiIntergation;
 	const totalDuration = calculateTotalDuration(jsonObject) * 2;
 
-	// Add retry logic for the initial POST request
 	let initialResponse = null;
 	for (let i = 0; i < 3; i++) {
 		try {
-			initialResponse = await axios({
+			initialResponse = await this.helpers.httpRequest({
 				method: 'POST',
 				url: 'https://api.robolly.com/v1/video/render',
 				headers: {
 					Authorization: `Bearer ${apiToken}`,
 					'Content-Type': 'application/json',
 				},
-				data: ApiIntergation,
+				body: ApiIntergation,
+				json: true,
 				timeout: 10000,
 			});
 			break;
@@ -528,7 +522,7 @@ async function handleMovieGenerateRequest(apiToken: string, ApiIntergation: any,
 		}
 	}
 
-	const resourceUrl = initialResponse?.data?.resourceUrl;
+	const resourceUrl = initialResponse?.resourceUrl;
 	if (!resourceUrl) {
 		throw new Error('Failed to get resource URL from response');
 	}
@@ -536,26 +530,27 @@ async function handleMovieGenerateRequest(apiToken: string, ApiIntergation: any,
 	let currentAttempts = 0;
 	while (currentAttempts < attempts) {
 		try {
-			const pollResponse = await axios({
+			const pollResponse = await this.helpers.httpRequest({
 				method: 'GET',
 				url: resourceUrl,
 				headers: {
 					Authorization: `Bearer ${apiToken}`,
 				},
+				json: true,
 				timeout: 15000,
 			});
 
-			if (pollResponse.data?.value?.[0]?.file) {
+			if (pollResponse?.value?.[0]?.file) {
 				return {
 					json: {
 						success: true,
-						videoUrl: pollResponse.data.value[0].file,
+						videoUrl: pollResponse.value[0].file,
 						status: 'completed',
 					},
 				};
 			}
 		} catch (error) {
-			console.log(`Poll attempt ${currentAttempts + 1} failed:`, error.message);
+			this.logger.info(`Poll attempt ${currentAttempts + 1} failed:`, error.message);
 		}
 
 		const timeoutDuration = Math.min(Math.max(totalDuration || 15000, 15000), 200000);

@@ -1,20 +1,29 @@
 import fs from 'fs';
-import sharp from 'sharp';
-import { file } from 'tmp-promise';
-import type { IBinaryData, IExecuteFunctions } from 'n8n-workflow';
+import { IBinaryData, IExecuteFunctions, NodeApiError, NodeOperationError } from 'n8n-workflow';
+import { createTempFile } from './utils';
+import { checkFFmpegAvailability, checkFFprobeAvailability, execFFmpeg, execFFprobeWithOutput } from './ffmpegMethods';
 
 export async function imageToWebP(this: IExecuteFunctions, imageBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	// Create a temporary output file
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.webp' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.tmp');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.webp');
 
 	try {
-		// Convert to WebP (quality ~ 80 is typical)
-		const outputBuffer = await sharp(imageBuffer).webp({ quality: 80 }).toBuffer();
+		await checkFFmpegAvailability();
+		
+		fs.writeFileSync(tmpInputPath, imageBuffer);
 
-		fs.writeFileSync(tmpOutputPath, outputBuffer);
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-c:v', 'libwebp',
+			'-q:v', '80',
+			'-f', 'webp',
+			'-y',
+			tmpOutputPath
+		]);
 
-		// Prepare the data for n8n
+		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'webp');
+		
 		const responseData = {
 			json: {
 				success: true,
@@ -27,27 +36,42 @@ export async function imageToWebP(this: IExecuteFunctions, imageBuffer: Buffer, 
 			},
 		};
 
+		await cleanupInput();
 		await cleanupOutput();
 		return { binaryData, responseData };
 	} catch (error) {
+		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function imageToAVIF(this: IExecuteFunctions, imageBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.avif' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.tmp');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.avif');
 
 	try {
-		// AVIF encoding (quality range ~30–50 is common)
-		const outputBuffer = await sharp(imageBuffer)
-			.avif({
-				quality: 40,
-			})
-			.toBuffer();
+		await checkFFmpegAvailability();
+		
+		fs.writeFileSync(tmpInputPath, imageBuffer);
 
-		fs.writeFileSync(tmpOutputPath, outputBuffer);
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-c:v', 'libaom-av1',
+			'-crf', '40',
+			'-f', 'avif',
+			'-y',
+			tmpOutputPath
+		]);
 
+		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'avif');
 
 		const responseData = {
@@ -62,29 +86,44 @@ export async function imageToAVIF(this: IExecuteFunctions, imageBuffer: Buffer, 
 			},
 		};
 
+		await cleanupInput();
 		await cleanupOutput();
 		return { binaryData, responseData };
 	} catch (error) {
+		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function imageToTIFF(this: IExecuteFunctions, imageBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.tiff' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.tmp');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.tiff');
 
 	try {
-		// Convert to TIFF (compression: 'lzw', 'deflate', 'jpeg', etc.)
-		const outputBuffer = await sharp(imageBuffer)
-			.tiff({
-				compression: 'lzw',
-				quality: 80,
-			})
-			.toBuffer();
+		await checkFFmpegAvailability();
+		
+		fs.writeFileSync(tmpInputPath, imageBuffer);
 
-		fs.writeFileSync(tmpOutputPath, outputBuffer);
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-c:v', 'tiff',
+			'-compression_algo', 'lzw',
+			'-f', 'tiff',
+			'-y',
+			tmpOutputPath
+		]);
 
+		const outputBuffer = fs.readFileSync(tmpOutputPath);
 		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'tiff');
+		
 		const responseData = {
 			json: {
 				success: true,
@@ -97,35 +136,64 @@ export async function imageToTIFF(this: IExecuteFunctions, imageBuffer: Buffer, 
 			},
 		};
 
+		await cleanupInput();
 		await cleanupOutput();
 		return { binaryData, responseData };
 	} catch (error) {
+		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
 
 export async function imageToRaw(this: IExecuteFunctions, imageBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
-	// We'll write the raw output to .bin
-	const { path: tmpOutputPath, cleanup: cleanupOutput } = await file({ postfix: '.bin' });
+	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.tmp');
+	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.raw');
 
 	try {
-		// Convert to raw pixel data
-		const { data, info } = await sharp(imageBuffer).raw().toBuffer({ resolveWithObject: true });
+		await checkFFmpegAvailability();
+		await checkFFprobeAvailability();
+		
+		fs.writeFileSync(tmpInputPath, imageBuffer);
 
-		// 'data' is a Buffer containing raw pixel data (no headers)
-		// 'info' gives width, height, channels, etc.
-		fs.writeFileSync(tmpOutputPath, data);
+		const probeOutput = await execFFprobeWithOutput([
+			'-v', 'quiet',
+			'-print_format', 'json',
+			'-show_streams',
+			tmpInputPath
+		]);
 
-		const binaryData = await this.helpers.prepareBinaryData(data, extentionOutput || 'bin');
+		const probeData = JSON.parse(probeOutput);
+		const videoStream = probeData.streams.find((s: any) => s.codec_type === 'video');
+		const width = videoStream?.width || 0;
+		const height = videoStream?.height || 0;
+
+		await execFFmpeg([
+			'-i', tmpInputPath,
+			'-f', 'rawvideo',
+			'-pix_fmt', 'rgb24',
+			'-y',
+			tmpOutputPath
+		]);
+
+		const outputBuffer = fs.readFileSync(tmpOutputPath);
+		const binaryData = await this.helpers.prepareBinaryData(outputBuffer, extentionOutput || 'bin');
+		
 		const responseData = {
 			json: {
 				success: true,
 				format: extentionOutput || 'bin',
-				width: info.width,
-				height: info.height,
-				channels: info.channels,
-				size: data.length,
+				width: width,
+				height: height,
+				channels: 3,
+				size: outputBuffer.length,
 				url,
 			},
 			binary: {
@@ -133,10 +201,25 @@ export async function imageToRaw(this: IExecuteFunctions, imageBuffer: Buffer, u
 			},
 		};
 
+		await cleanupInput();
 		await cleanupOutput();
 		return { binaryData, responseData };
 	} catch (error) {
+		await cleanupInput();
 		await cleanupOutput();
-		throw error;
+		
+		if (error.message === 'FFMPEG_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		if (error.message === 'FFPROBE_NOT_FOUND') {
+			throw new NodeOperationError(
+				this.getNode(),
+				'FFprobe is not installed on this system. Please install FFmpeg (which includes FFprobe) to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+			);
+		}
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }

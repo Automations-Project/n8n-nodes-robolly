@@ -1,11 +1,10 @@
-import { IExecuteFunctions, IHttpRequestMethods, ILoadOptionsFunctions } from 'n8n-workflow';
+import { IExecuteFunctions, IHttpRequestMethods, ILoadOptionsFunctions, NodeApiError } from 'n8n-workflow';
 
 interface RequestOptions {
 	method?: 'GET' | 'POST';
 	headers?: HeadersInit;
 	body?: any;
 	params?: Record<string, string>;
-	// true for render endpoints, false for classic API
 }
 
 export interface RobollyResponse {
@@ -31,7 +30,6 @@ export async function genericHttpRequest<T = RobollyResponse>(this: IExecuteFunc
 		const credentials = await this.getCredentials('robollyApi');
 		const apiToken = credentials?.apikey as string;
 
-		// Add query parameters to URL if they exist
 		let fullEndpoint = `https://api.robolly.com${endpoint}`;
 		if (options.params) {
 			const searchParams = new URLSearchParams(options.params);
@@ -52,7 +50,6 @@ export async function genericHttpRequest<T = RobollyResponse>(this: IExecuteFunc
 		});
 		return response as T;
 	} catch (error) {
-		console.error('Request failed:', error);
-		throw error;
+		throw new NodeApiError(this.getNode(), error as any);
 	}
 }
