@@ -1,6 +1,6 @@
 {
   "name": "@nskha/n8n-nodes-robolly",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Robolly Node",
   "keywords": [
     "n8n-community-node-package"
@@ -52,5 +52,8 @@
   },
   "peerDependencies": {
     "n8n-workflow": "*"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   }
 }
