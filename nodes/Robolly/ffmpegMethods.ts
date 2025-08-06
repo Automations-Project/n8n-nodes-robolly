@@ -3,6 +3,81 @@ import fs from 'fs';
 import { IBinaryData, IExecuteFunctions, NodeApiError, NodeOperationError } from 'n8n-workflow';
 import { createTempFile } from './utils';
 
+function analyzeFFmpegError(stderr: string, code: number): { isFormatError: boolean; userMessage?: string } {
+	const errorText = stderr.toLowerCase();
+	
+	if (errorText.includes('requested output format') && errorText.includes('is not known')) {
+		const formatMatch = stderr.match(/requested output format '([^']+)' is not known/i);
+		const format = formatMatch ? formatMatch[1] : 'unknown';
+		return {
+			isFormatError: true,
+			userMessage: `Output format '${format}' is not supported by your FFmpeg installation. This could be due to missing codecs or your FFmpeg version not including support for this format. Please check your FFmpeg installation and ensure it includes the necessary encoders/muxers.`
+		};
+	}
+	
+	if (errorText.includes('unknown encoder') || errorText.includes('encoder not found')) {
+		const encoderMatch = stderr.match(/unknown encoder '([^']+)'/i) || stderr.match(/encoder '([^']+)' not found/i);
+		const encoder = encoderMatch ? encoderMatch[1] : 'unknown';
+		return {
+			isFormatError: true,
+			userMessage: `Video/audio encoder '${encoder}' is not available in your FFmpeg installation. Your FFmpeg may have been compiled without this codec. Please install a version that includes the '${encoder}' encoder.`
+		};
+	}
+	
+	if (errorText.includes('error initializing the muxer')) {
+		return {
+			isFormatError: true,
+			userMessage: `FFmpeg failed to initialize the output format. This usually indicates the output format is not supported or the file extension doesn't match the requested format. Please verify your FFmpeg installation includes the necessary muxers.`
+		};
+	}
+	
+	if (errorText.includes('unknown decoder') || errorText.includes('decoder not found')) {
+		const decoderMatch = stderr.match(/unknown decoder '([^']+)'/i) || stderr.match(/decoder '([^']+)' not found/i);
+		const decoder = decoderMatch ? decoderMatch[1] : 'unknown';
+		return {
+			isFormatError: true,
+			userMessage: `Video/audio decoder '${decoder}' is not available in your FFmpeg installation. Your FFmpeg may have been compiled without this codec. Please install a version that includes the '${decoder}' decoder.`
+		};
+	}
+	
+	if (errorText.includes('incompatible pixel format') || errorText.includes('unsupported pixel format')) {
+		return {
+			isFormatError: true,
+			userMessage: `The pixel format is not supported by the selected codec. This is usually a codec compatibility issue with your FFmpeg installation.`
+		};
+	}
+	
+	if (errorText.includes('no such filter') || errorText.includes('unknown filter')) {
+		const filterMatch = stderr.match(/no such filter: '([^']+)'/i) || stderr.match(/unknown filter '([^']+)'/i);
+		const filter = filterMatch ? filterMatch[1] : 'unknown';
+		return {
+			isFormatError: true,
+			userMessage: `Video filter '${filter}' is not available in your FFmpeg installation. Please ensure you have a complete FFmpeg installation with filter support.`
+		};
+	}
+	
+	return { isFormatError: false };
+}
+
+function handleFFmpegError(error: any, node: any): never {
+	if (error.message === 'FFMPEG_NOT_FOUND') {
+		throw new NodeOperationError(
+			node,
+			'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
+		);
+	}
+	
+	if (error.message.includes('is not supported by your FFmpeg installation') ||
+		error.message.includes('is not available in your FFmpeg installation') ||
+		error.message.includes('failed to initialize the output format') ||
+		error.message.includes('is not supported by the selected codec') ||
+		error.message.includes('is not available in your FFmpeg installation')) {
+		throw new NodeOperationError(node, error.message);
+	}
+	
+	throw new NodeApiError(node, error as any);
+}
+
 export async function checkFFmpegAvailability(): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const ffmpeg = spawn('ffmpeg', ['-version'], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -61,7 +136,13 @@ export async function execFFmpeg(args: string[]): Promise<void> {
 			if (code === 0) {
 				resolve();
 			} else {
-				reject(new Error(`FFmpeg process exited with code ${code}: ${stderr}`));
+				const exitCode = code || 1;
+				const errorInfo = analyzeFFmpegError(stderr, exitCode);
+				if (errorInfo.isFormatError) {
+					reject(new Error(`FFmpeg process exited with code ${exitCode}: ${errorInfo.userMessage}`));
+				} else {
+					reject(new Error(`FFmpeg process exited with code ${exitCode}: ${stderr}`));
+				}
 			}
 		});
 		
@@ -162,13 +243,7 @@ export async function mp4ToGifWithCompression(this: IExecuteFunctions, videoBuff
 		await cleanupPalette();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }
 
@@ -220,13 +295,7 @@ export async function mp4ToWebPWithCompression(this: IExecuteFunctions, videoBuf
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }
 
@@ -276,13 +345,7 @@ export async function mp4ToAV1WithCompression(this: IExecuteFunctions, videoBuff
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }
 
@@ -331,13 +394,7 @@ export async function mp4ToHEVCWithCompression(this: IExecuteFunctions, videoBuf
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }
 
@@ -387,13 +444,7 @@ export async function mp4ToVP9WithCompression(this: IExecuteFunctions, videoBuff
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }
 
@@ -442,13 +493,7 @@ export async function mp4ToH264WithCompression(this: IExecuteFunctions, videoBuf
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }
 
@@ -499,12 +544,6 @@ export async function mp4ToWebMWithCompression(this: IExecuteFunctions, videoBuf
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use video conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegError(error, this.getNode());
 	}
 }

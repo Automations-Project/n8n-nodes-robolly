@@ -3,6 +3,32 @@ import { IBinaryData, IExecuteFunctions, NodeApiError, NodeOperationError } from
 import { createTempFile } from './utils';
 import { checkFFmpegAvailability, checkFFprobeAvailability, execFFmpeg, execFFprobeWithOutput } from './ffmpegMethods';
 
+function handleFFmpegImageError(error: any, node: any): never {
+	if (error.message === 'FFMPEG_NOT_FOUND') {
+		throw new NodeOperationError(
+			node,
+			'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+		);
+	}
+	
+	if (error.message === 'FFPROBE_NOT_FOUND') {
+		throw new NodeOperationError(
+			node,
+			'FFprobe is not installed on this system. Please install FFmpeg (which includes FFprobe) to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
+		);
+	}
+	
+	if (error.message.includes('is not supported by your FFmpeg installation') ||
+		error.message.includes('is not available in your FFmpeg installation') ||
+		error.message.includes('failed to initialize the output format') ||
+		error.message.includes('is not supported by the selected codec') ||
+		error.message.includes('is not available in your FFmpeg installation')) {
+		throw new NodeOperationError(node, error.message);
+	}
+	
+	throw new NodeApiError(node, error as any);
+}
+
 export async function imageToWebP(this: IExecuteFunctions, imageBuffer: Buffer, url: string, extentionOutput: string): Promise<{ binaryData: IBinaryData; responseData: any }> {
 	const { path: tmpInputPath, cleanup: cleanupInput } = await createTempFile('.tmp');
 	const { path: tmpOutputPath, cleanup: cleanupOutput } = await createTempFile('.webp');
@@ -43,13 +69,7 @@ export async function imageToWebP(this: IExecuteFunctions, imageBuffer: Buffer, 
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegImageError(error, this.getNode());
 	}
 }
 
@@ -93,13 +113,7 @@ export async function imageToAVIF(this: IExecuteFunctions, imageBuffer: Buffer, 
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegImageError(error, this.getNode());
 	}
 }
 
@@ -143,13 +157,7 @@ export async function imageToTIFF(this: IExecuteFunctions, imageBuffer: Buffer, 
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegImageError(error, this.getNode());
 	}
 }
 
@@ -208,18 +216,6 @@ export async function imageToRaw(this: IExecuteFunctions, imageBuffer: Buffer, u
 		await cleanupInput();
 		await cleanupOutput();
 		
-		if (error.message === 'FFMPEG_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFmpeg is not installed on this system. Please install FFmpeg to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		if (error.message === 'FFPROBE_NOT_FOUND') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'FFprobe is not installed on this system. Please install FFmpeg (which includes FFprobe) to use image conversion features. Installation guide: https://ffmpeg.org/download.html'
-			);
-		}
-		throw new NodeApiError(this.getNode(), error as any);
+		handleFFmpegImageError(error, this.getNode());
 	}
 }
