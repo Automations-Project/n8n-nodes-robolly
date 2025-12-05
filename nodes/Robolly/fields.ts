@@ -127,26 +127,6 @@ export const generateImageFields: INodeProperties[] = [
 		description: 'Image Format like png/jpg',
 	},
 	{
-		displayName: 'Change Encoding',
-		name: 'convertToIMG',
-		type: 'options',
-		options: [
-			{ name: 'None', value: '', description: 'No conversion' },
-			{ name: '🖼️ AVIF', value: '.avif', description: '🥇 Next-gen image format with superior compression' },
-			{ name: '🖼️ WebP', value: '.webp', description: '🥈 Modern image format with excellent compression' },
-			{ name: '🖼️ TIFF', value: '.tiff', description: '🥉 High-quality lossless image format' },
-			{ name: '🖼️ RAW', value: '.raw', description: '🥉 Unprocessed image data format' },
-		],
-		displayOptions: {
-			show: {
-				operation: ['generateImage'],
-				generateLinkOnly: [false],
-			},
-		},
-		default: '',
-		description: 'Convert the image to the desired format',
-	},
-	{
 		displayName: 'Image Scale',
 		name: 'ImageScale',
 		type: 'options',
@@ -180,29 +160,6 @@ export const generateImageFields: INodeProperties[] = [
 		},
 		default: '1',
 	},
-	{
-		displayName: 'Change File Extension',
-		name: 'extentionOutput',
-		type: 'options',
-		options: [
-			{
-				name: 'Same as Change Encoding',
-				value: '',
-			},
-			{ name: 'PNG', value: 'png' },
-			{ name: 'JPG', value: 'jpg' },
-		],
-		displayOptions: {
-			show: {
-				operation: ['generateImage'],
-				convertToIMG: ['.webp', '.avif', '.tiff', '.raw'],
-				generateLinkOnly: [false],
-			},
-		},
-		default: '',
-		description: 'Whether to optimize the converted image for better quality/size ratio',
-	},
-
 	{
 		displayName: 'Template Elements',
 		name: 'elementsImage',
@@ -305,52 +262,6 @@ export const generateVideoFields: INodeProperties[] = [
 			},
 		},
 		default: '24',
-	},
-
-	{
-		displayName: 'Change Encoding',
-		name: 'convertToVideo',
-		type: 'options',
-
-		options: [
-			{ name: 'None', value: '', description: 'No conversion' },
-			{ name: '📹 AV1', value: '.av1', description: '🥇 High-efficiency video codec with excellent compression' },
-			{ name: '🎥 WebP', value: '.webp', description: '🥈 Animation format with efficient compression' },
-			{ name: '🎥 WebM', value: '.webm', description: '🥉 Video format with efficient compression' },
-			{ name: '🎥 GIF', value: '.gif', description: '🥉 Animation format with wide compatibility' },
-			{ name: '📹 H.264 (AVC)', value: '.h264', description: '🥉 Widely supported video codec with good compression' },
-			{ name: '📹 HEVC (H.265)', value: '.hevc', description: '🥉 High-efficiency video coding with improved compression' },
-			{ name: '📹 VP9', value: '.vp9', description: '🥉 Open-source video codec with efficient compression' },
-		],
-		displayOptions: {
-			show: {
-				operation: ['generateVideo'],
-				movieGeneration: [false],
-			},
-		},
-		default: '',
-		description: 'Convert the video Locally',
-	},
-	{
-		displayName: 'Change File Extension',
-		name: 'extentionOutput',
-		type: 'options',
-		options: [
-			{
-				name: 'Same as Change Encoding',
-				value: '',
-			},
-			{ name: 'MP4', value: 'mp4', description: 'Modern video format with excellent compression' },
-		],
-		displayOptions: {
-			show: {
-				operation: ['generateVideo'],
-				convertToVideo: ['.av1', '.webp', '.webm', '.gif', '.h264', '.hevc', '.vp9'],
-				movieGeneration: [false],
-			},
-		},
-		default: '',
-		description: 'Change the file extension of the generated video',
 	},
 
 	{

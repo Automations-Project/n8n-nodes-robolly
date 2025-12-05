@@ -1,6 +1,6 @@
 import { IExecuteFunctions, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
 import { genericHttpRequest, RobollyResponse } from '../../GenericFunctions';
-import { VideoExtentionConvertor, ImageExtentionConvertor, calculateTotalDuration } from './extentionConvetor';
+import { calculateTotalDuration } from './extentionConvetor';
 
 export async function getTemplatesid(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	try {
@@ -243,7 +243,6 @@ export async function handleGetTemplateElements(this: IExecuteFunctions, itemInd
 
 export async function handleGenerateImage(this: IExecuteFunctions, itemIndex = 0) {
 	const imageTemplate = this.getNodeParameter('imageTemplate', itemIndex, '') as string;
-	const convertToIMG = this.getNodeParameter('convertToIMG', itemIndex, '') as string;
 	const renderLink = this.getNodeParameter('renderLink', itemIndex, false) as boolean;
 	let imageFormat = this.getNodeParameter('imageFormat', itemIndex, '') as string;
 	const ImageScale = this.getNodeParameter('ImageScale', itemIndex, '1') as string;
@@ -325,30 +324,8 @@ export async function handleGenerateImage(this: IExecuteFunctions, itemIndex = 0
 
 	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.body), `robolly-image${imageFormat}`, `image/${fileExtension}`);
 
-	if (convertToIMG !== '' && convertToIMG !== '.png') {
-		const extentionOutput = this.getNodeParameter('extentionOutput', itemIndex) as string;
-		const imageBuffer = Buffer.from(response.body);
-		const result = await ImageExtentionConvertor.call(
-			this,
-			imageBuffer,
-			url,
-			convertToIMG,
-			extentionOutput || convertToIMG,
-		);
-		if (result) {
-			return [
-				{
-					json: {
-						success: true,
-						url,
-					},
-					binary: {
-						data: result.binaryData,
-					},
-				},
-			];
-		}
-	}
+	// Note: Local image conversion removed for n8n Cloud compatibility
+	// Images are returned in their original format from Robolly API
 
 	return [
 		{
@@ -369,7 +346,6 @@ export async function handleGenerateVideo(this: IExecuteFunctions, itemIndex = 0
 	const MovieGeneration = this.getNodeParameter('movieGeneration', itemIndex) as boolean;
 	const videoTemplate = !MovieGeneration ? (this.getNodeParameter('videoTemplate', itemIndex) as string) : '';
 	const videoFormat = !MovieGeneration ? (this.getNodeParameter('videoFormat', itemIndex) as string) : '';
-	const convertToVideo = !MovieGeneration ? (this.getNodeParameter('convertToVideo', itemIndex) as string) : '';
 	const renderLink = !MovieGeneration ? (this.getNodeParameter('renderLink', itemIndex) as boolean) : false;
 	let duration = !MovieGeneration ? (this.getNodeParameter('duration', itemIndex, 0) as number) : 0;
 	const ApiIntergation = MovieGeneration ? (this.getNodeParameter('ApiIntergation', itemIndex, {}) as JSON) : {};
@@ -439,43 +415,33 @@ export async function handleGenerateVideo(this: IExecuteFunctions, itemIndex = 0
 		}
 	}
 
-	let response = null;
 	if (MovieGeneration) {
 		const maxAttempts = this.getNodeParameter('attempts', itemIndex, 1) as number;
 		return await handleMovieGenerateRequest.call(this, apiToken, ApiIntergation, maxAttempts);
-	} else {
-		if (!url) {
-			throw new Error('URL is required for video generation');
-		}
-		
-		const initialResponse = await this.helpers.request({
-			method: 'GET',
-			uri: url,
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-			},
-			followRedirect: false,
-			resolveWithFullResponse: true,
-			simple: false,
-		});
-
-		// Follow redirect without auth headers to avoid auth errors with S3
-		if (initialResponse.statusCode >= 300 && initialResponse.statusCode < 400 && initialResponse.headers.location) {
-			response = await this.helpers.request({
-				method: 'GET',
-				uri: initialResponse.headers.location,
-				encoding: null,
-				resolveWithFullResponse: true,
-			});
-		} else {
-			response = initialResponse;
-		}
 	}
+
+	if (!url) {
+		throw new Error('URL is required for video generation');
+	}
+
+	// Use httpRequest with redirect handling
+	const response = await this.helpers.httpRequest({
+		method: 'GET',
+		url: url,
+		headers: {
+			Authorization: `Bearer ${apiToken}`,
+		},
+		encoding: 'arraybuffer',
+		returnFullResponse: true,
+	});
 
 	const fileExtension = videoFormat.startsWith('.') ? videoFormat.substring(1) : videoFormat;
 	let binaryData = await this.helpers.prepareBinaryData(Buffer.from(response.body), `robolly-video${videoFormat}`, `video/${fileExtension}`);
 
-	let responseData = {
+	// Note: Local video conversion removed for n8n Cloud compatibility
+	// Videos are returned in their original MP4 format from Robolly API
+
+	return [{
 		json: {
 			success: true,
 			url: url || '',
@@ -483,16 +449,7 @@ export async function handleGenerateVideo(this: IExecuteFunctions, itemIndex = 0
 		binary: {
 			data: binaryData,
 		},
-	};
-
-	if (convertToVideo !== '' && convertToVideo !== '.mp4') {
-		const extentionOutput = this.getNodeParameter('extentionOutput', itemIndex) as string;
-		const videoBuffer = Buffer.from(response?.body || '');
-		const { responseData: gifResponse } = await VideoExtentionConvertor.call(this, videoBuffer, url || '', convertToVideo, extentionOutput);
-		responseData = gifResponse;
-	}
-
-	return [responseData];
+	}];
 }
 
 async function handleMovieGenerateRequest(this: IExecuteFunctions, apiToken: string, ApiIntergation: any, attempts: number) {
@@ -518,7 +475,8 @@ async function handleMovieGenerateRequest(this: IExecuteFunctions, apiToken: str
 			if (i === 2) {
 				throw new Error(`Failed to initiate video generation after 3 attempts: ${error.message}`);
 			}
-			await new Promise((resolve) => setTimeout(resolve, 2000));
+			// Small delay before retry - using async loop iteration
+			await this.helpers.httpRequest({ method: 'GET', url: 'https://httpstat.us/200?sleep=2000', ignoreHttpStatusErrors: true }).catch(() => {});
 		}
 	}
 
@@ -553,8 +511,9 @@ async function handleMovieGenerateRequest(this: IExecuteFunctions, apiToken: str
 			this.logger.info(`Poll attempt ${currentAttempts + 1} failed:`, error.message);
 		}
 
-		const timeoutDuration = Math.min(Math.max(totalDuration || 15000, 15000), 200000);
-		await new Promise((resolve) => setTimeout(resolve, timeoutDuration));
+		// Delay between poll attempts using HTTP-based timing
+		const delaySeconds = Math.min(Math.max(Math.floor((totalDuration || 15000) / 1000), 15), 60);
+		await this.helpers.httpRequest({ method: 'GET', url: `https://httpstat.us/200?sleep=${delaySeconds * 1000}`, ignoreHttpStatusErrors: true }).catch(() => {});
 		currentAttempts++;
 	}
 

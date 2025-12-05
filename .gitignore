@@ -1,13 +1,90 @@
 node_modules
-.DS_Store
-.tmp
-tmp
-dist
-npm-debug.log*
-yarn.lock
-.vscode/launch.json
-.npmrc
-dist/
-*.tsbuildinfo
 package-lock.json
 
+# Build outputs
+dist
+dist-full
+dist-cloud-backup
+.build-backup
+
+# Development/planning files
+REFACTOR.md
+refactor.md
+*.md.bak
+progress.txt
+
+# Test coverage
+coverage
+*.lcov
+
+# Scripts - only ignore local-only files
+# scripts/banner.config is tracked (display settings for banner generation)
+
+# IDE & Editor files
+.vscode/
+.vscode
+.idea/
+.idea
+*.iml
+.windsurf/
+.windsurf
+.junie/
+.junie
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.vs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+.tmp
+tmp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Lock files (we keep pnpm-lock.yaml only)
+yarn.lock
+
+# Local development files
+ecosystem.config.js
+.dev-logs/
+dev-docs/
+research-files/
+structure_exports/
+
+# Session & progress tracking (local only)
+SESSION_SUMMARY.md
+STEP*.md
+progress.md
+DRAFT.md
+IMPLEMENTATION_SUMMARY.md
+TESTING_GUIDE.md
+TROUBLESHOOTING_FIXED.md
+DEV-WORKFLOW.md
+
+# PM2
+.pm2
+
+# n8n
+.n8n-docs
+
+# Environment variables (contains sensitive API endpoints)
+.env
+
+# Qodana reports (auto-generated)
+*.sarif.json
+qodana/
+/.github/PUBLISH_QUICK_START.md
+/.github/PUBLISHING.md
+/.github/README.md
+TEMPLATE_CREATION_GUIDE.md
+create-template.js
+logs

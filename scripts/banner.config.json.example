@@ -1,0 +1,37 @@
+{
+  "nodeName": "Robolly",
+  "description": "Template-based image & video generation with Robolly API",
+  "version": "0.1.0",
+  "nodeLogo": "https://s3.g.s4.mega.io/yebes47uhignbseo6okwiz5s5fn5uekplwkrl/n8n/nodes/robolly.svg", 
+  "theme": "ocean",
+  "globalFont": "Inter",
+  "author": "nskha",
+  "category": "Media",
+  "license": "MIT",
+  "packageName": "@nskha/n8n-nodes-robolly",
+  "minN8nVersion": "1.0.0",
+  "status": "Beta",
+  "installCommand": "npm i @nskha/n8n-nodes-robolly",
+  "repoUrl": "github.com/Automations-Project/n8n-nodes-robolly",
+  "features": [
+    "✅ Image Generation",
+    "✅ Video Generation",
+    "✅ Template Management",
+    "✅ Open Source"
+  ],
+  "styles": {
+    "versionStyle": "normal",
+    "authorStyle": "normal",
+    "categoryStyle": "normal",
+    "licenseStyle": "normal",
+    "packageStyle": "normal",
+    "minVersionStyle": "normal",
+    "statusStyle": "normal",
+    "commandStyle": "normal",
+    "repoStyle": "normal",
+    "feature1Style": "normal",
+    "feature2Style": "normal",
+    "feature3Style": "normal",
+    "feature4Style": "normal"
+  }
+}
