@@ -1,6 +1,6 @@
 {
   "name": "@nskha/n8n-nodes-robolly",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Robolly Node",
   "keywords": [
     "n8n-community-node-package"
