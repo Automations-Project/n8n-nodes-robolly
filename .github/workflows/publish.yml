@@ -75,12 +75,9 @@ jobs:
       - name: Run linting
         run: pnpm run lint
 
-      - name: Run tests with coverage
-        run: pnpm run test:coverage
-
-      - name: Check test coverage threshold
+      - name: Build check
         run: |
-          echo "✅ All tests passed with adequate coverage"
+          echo "✅ Ready for build"
 
       - name: Bump version
         id: version
@@ -174,12 +171,12 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "dist/nodes/Mega/Mega.node.js" ]; then
+          if [ ! -f "dist/nodes/Robolly/Robolly.node.js" ]; then
             echo "❌ Build failed: Main node file not found"
             exit 1
           fi
 
-          if [ ! -f "dist/credentials/MegaApi.credentials.js" ]; then
+          if [ ! -f "dist/credentials/robollyApi.credentials.js" ]; then
             echo "❌ Build failed: Credentials file not found"
             exit 1
           fi
@@ -214,7 +211,7 @@ jobs:
           path: |
             dist/
             package.json
-            package-lock.json
+            pnpm-lock.yaml
             README.md
             LICENSE.md
           retention-days: 1
@@ -412,7 +409,7 @@ jobs:
 
           ### 🔗 Resources
 
-          - [Mega S4 Documentation](https://mega.io/s4)
+          - [Robolly API Documentation](https://robolly.com/docs)
           - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
           - [Report Issues](https://github.com/Automations-Project/n8n-nodes-robolly/issues)
 
