@@ -6,19 +6,30 @@ dist
 dist-full
 dist-cloud-backup
 .build-backup
+.build-full/
 
 # Development/planning files
 REFACTOR.md
 refactor.md
 *.md.bak
 progress.txt
+README_TEMPLATE.md
 
 # Test coverage
 coverage
 *.lcov
 
-# Scripts - only ignore local-only files
-# scripts/banner.config is tracked (display settings for banner generation)
+# Development scripts (not needed for production)
+#scripts/banner.config.json
+scripts/build-variants.js
+scripts/force-reload.js
+scripts/publish-full.js
+scripts/setup-dev-windows.js
+scripts/update-banner.js
+scripts/watch-n8n.js
+
+# Deprecated config
+tslint.json
 
 # IDE & Editor files
 .vscode/

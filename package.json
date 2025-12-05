@@ -9,7 +9,7 @@
   "homepage": "",
   "author": {
     "name": "nskha",
-    "email": "github-public@admins.mozmail.com"
+    "email": "github-public@team.nskha.com"
   },
   "repository": {
     "type": "git",
@@ -21,20 +21,11 @@
   "main": "index.js",
   "scripts": {
     "build": "npx rimraf dist && tsc && gulp build:icons",
-    "build:cloud": "npm run build",
-    "build:full": "node scripts/build-variants.js full",
-    "build:both": "node scripts/build-variants.js both",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
     "lintfix": "eslint nodes credentials package.json --fix",
-    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials package.json",
-    "publish:full": "node scripts/publish-full.js",
-    "start:dev-windows": "npm run build && node scripts/setup-dev-windows.js",
-    "start:dev-windows:watch": "npm run build && node scripts/setup-dev-windows.js --start-only --no-logs && npx concurrently --kill-others-on-fail --names ts,watch,logs \"tsc --watch --preserveWatchOutput\" \"node scripts/watch-n8n.js\" \"pm2 logs n8n-dev\"",
-    "force-reload": "node scripts/force-reload.js",
-    "stop": "pm2 delete n8n-dev || true",
-    "update:banner": "node scripts/update-banner.js"
+    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials package.json"
   },
   "files": [
     "dist"
@@ -51,7 +42,6 @@
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@typescript-eslint/parser": "~8.32.0",
-    "concurrently": "^9.1.2",
     "eslint": "^8.57.0",
     "eslint-plugin-n8n-nodes-base": "^1.16.3",
     "gulp": "^5.0.0",
