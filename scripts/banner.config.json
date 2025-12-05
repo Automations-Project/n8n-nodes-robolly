@@ -1,8 +1,7 @@
 {
   "nodeName": "Robolly",
   "description": "Template-based image & video generation with Robolly API",
-  "version": "0.1.0",
-  "nodeLogo": "",
+  "nodeLogo": "https://s3.g.s4.mega.io/yebes47uhignbseo6okwiz5s5fn5uekplwkrl/n8n/nodes/robolly.svg",
   "theme": "ocean",
   "globalFont": "Inter",
   "author": "nskha",
